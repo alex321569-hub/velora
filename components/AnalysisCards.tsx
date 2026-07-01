@@ -1,8 +1,8 @@
-import type { StockBasicInfo, StockIndicators } from "@/lib/market/types";
+import type { StockBasicInfo, StockIndicators, SupportResistanceLevel } from "@/lib/market/types";
 
 function formatValue(value: number | null, currency: StockBasicInfo["currency"]) {
   if (value === null) {
-    return "데이터 부족";
+    return "데이터 없음";
   }
 
   return currency === "KRW"
@@ -27,6 +27,32 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
+function LevelList({
+  levels,
+  currency,
+}: {
+  levels: SupportResistanceLevel[];
+  currency: StockBasicInfo["currency"];
+}) {
+  if (levels.length === 0) {
+    return <p>데이터 없음</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {levels.map((level, index) => (
+        <div key={`${level.type}-${level.price}-${index}`} className="rounded-md border border-line/70 bg-panel/50 px-3 py-2">
+          <p>
+            {index + 1}단계: {formatValue(level.price, currency)}
+          </p>
+          <p className="text-xs font-extrabold text-muted">신뢰도 {level.confidence}점</p>
+          <p className="text-xs font-bold text-muted">{level.reason}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AnalysisCards({
   indicators,
   currency,
@@ -44,74 +70,66 @@ export default function AnalysisCards({
           {indicators.calculationError}
         </div>
       ) : (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card title="52주 최고/최저">
-          <p>최저: {formatValue(indicators.week52Low, currency)}</p>
-          <p>최고: {formatValue(indicators.week52High, currency)}</p>
-        </Card>
-        <Card title="볼린저밴드">
-          <p>상단: {formatValue(indicators.bollingerBands.upper, currency)}</p>
-          <p>중앙: {formatValue(indicators.bollingerBands.middle, currency)}</p>
-          <p>하단: {formatValue(indicators.bollingerBands.lower, currency)}</p>
-        </Card>
-        <Card title="이동평균선">
-          <p>5일: {formatValue(ma.sma5, currency)}</p>
-          <p>20일: {formatValue(ma.sma20, currency)}</p>
-          <p>60일: {formatValue(ma.sma60, currency)}</p>
-          <p>120일: {formatValue(ma.sma120, currency)}</p>
-          <p>365일: {formatValue(ma.sma365, currency)}</p>
-        </Card>
-        <Card title="RSI">
-          <p>
-            [{indicators.rsiStatus}] {indicators.rsi.toFixed(2)}
-          </p>
-        </Card>
-        <Card title="지지선">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <p key={index}>
-              {index + 1}단계: {formatValue(indicators.supportResistance.supports[index] ?? null, currency)}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Card title="52주 최고/최저">
+            <p>최저: {formatValue(indicators.week52Low, currency)}</p>
+            <p>최고: {formatValue(indicators.week52High, currency)}</p>
+          </Card>
+          <Card title="볼린저밴드">
+            <p>상단: {formatValue(indicators.bollingerBands.upper, currency)}</p>
+            <p>중앙: {formatValue(indicators.bollingerBands.middle, currency)}</p>
+            <p>하단: {formatValue(indicators.bollingerBands.lower, currency)}</p>
+          </Card>
+          <Card title="이동평균선">
+            <p>5일: {formatValue(ma.sma5, currency)}</p>
+            <p>20일: {formatValue(ma.sma20, currency)}</p>
+            <p>60일: {formatValue(ma.sma60, currency)}</p>
+            <p>120일: {formatValue(ma.sma120, currency)}</p>
+            <p>365일: {formatValue(ma.sma365, currency)}</p>
+          </Card>
+          <Card title="RSI">
+            <p>
+              [{indicators.rsiStatus}] {indicators.rsi.toFixed(2)}
             </p>
-          ))}
-        </Card>
-        <Card title="저항선">
-          {indicators.supportResistance.resistanceMessage ? (
-            <p>{indicators.supportResistance.resistanceMessage}</p>
-          ) : (
-            Array.from({ length: 5 }).map((_, index) => (
-              <p key={index}>
-                {index + 1}단계: {formatValue(indicators.supportResistance.resistances[index] ?? null, currency)}
-              </p>
-            ))
-          )}
-        </Card>
-        <Card title="종합 신호">
-          <p>추세 상태: {indicators.compositeSignal.trendStatus}</p>
-          <p>현재 위치: {indicators.compositeSignal.pricePosition}</p>
-          <p>RSI 상태: {indicators.compositeSignal.rsiStatus}</p>
-          <p>
-            지지선 거리:{" "}
-            {formatDistance(
-              indicators.compositeSignal.nearestSupportDistance,
-              indicators.compositeSignal.nearestSupportDistancePercent,
-              currency,
+          </Card>
+          <Card title="지지선">
+            <LevelList levels={indicators.supportResistance.supports} currency={currency} />
+          </Card>
+          <Card title="저항선">
+            {indicators.supportResistance.resistanceMessage ? (
+              <p>{indicators.supportResistance.resistanceMessage}</p>
+            ) : (
+              <LevelList levels={indicators.supportResistance.resistances} currency={currency} />
             )}
-          </p>
-          <p>
-            저항선 거리:{" "}
-            {formatDistance(
-              indicators.compositeSignal.nearestResistanceDistance,
-              indicators.compositeSignal.nearestResistanceDistancePercent,
-              currency,
+          </Card>
+          <Card title="종합 신호">
+            <p>추세 상태: {indicators.compositeSignal.trendStatus}</p>
+            <p>현재 위치: {indicators.compositeSignal.pricePosition}</p>
+            <p>RSI 상태: {indicators.compositeSignal.rsiStatus}</p>
+            <p>
+              지지선 거리:{" "}
+              {formatDistance(
+                indicators.compositeSignal.nearestSupportDistance,
+                indicators.compositeSignal.nearestSupportDistancePercent,
+                currency,
+              )}
+            </p>
+            <p>
+              저항선 거리:{" "}
+              {formatDistance(
+                indicators.compositeSignal.nearestResistanceDistance,
+                indicators.compositeSignal.nearestResistanceDistancePercent,
+                currency,
+              )}
+            </p>
+            <p>
+              종합 점수: {indicators.compositeSignal.score}점 · {indicators.compositeSignal.scoreLabel}
+            </p>
+            {indicators.compositeSignal.warning && (
+              <p className="font-extrabold text-negative">{indicators.compositeSignal.warning}</p>
             )}
-          </p>
-          <p>
-            종합 점수: {indicators.compositeSignal.score}점 · {indicators.compositeSignal.scoreLabel}
-          </p>
-          {indicators.compositeSignal.warning && (
-            <p className="font-extrabold text-negative">{indicators.compositeSignal.warning}</p>
-          )}
-        </Card>
-      </div>
+          </Card>
+        </div>
       )}
     </section>
   );

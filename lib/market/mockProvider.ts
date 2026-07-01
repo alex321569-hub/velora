@@ -18,6 +18,7 @@ import type {
   StockAnalysisResponse,
   StockBasicInfo,
   SearchFilter,
+  SupportResistanceLevel,
 } from "./types";
 
 interface MockSeed {
@@ -136,15 +137,15 @@ function generateHistoricalPrices(symbol: string): HistoricalPrice[] {
   return prices;
 }
 
-function getNearestDistance(levels: number[], currentPrice: number): { distance: number | null; percent: number | null } {
+function getNearestDistance(levels: SupportResistanceLevel[], currentPrice: number): { distance: number | null; percent: number | null } {
   if (levels.length === 0 || currentPrice === 0) {
     return { distance: null, percent: null };
   }
 
   const nearest = levels.reduce((closest, level) =>
-    Math.abs(level - currentPrice) < Math.abs(closest - currentPrice) ? level : closest,
+    Math.abs(level.price - currentPrice) < Math.abs(closest.price - currentPrice) ? level : closest,
   );
-  const distance = Math.abs(currentPrice - nearest);
+  const distance = Math.abs(currentPrice - nearest.price);
 
   return {
     distance,

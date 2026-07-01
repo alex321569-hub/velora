@@ -10,17 +10,17 @@ import {
 import { mockMarketDataProvider } from "./providers/mockProvider";
 import type { StockMarketProvider } from "./providers/marketProvider";
 import { yahooMarketDataProvider } from "./providers/yahooProvider";
-import type { CompanyProfile, Quote, StockAnalysisResponse, StockBasicInfo } from "./types";
+import type { CompanyProfile, Quote, StockAnalysisResponse, StockBasicInfo, SupportResistanceLevel } from "./types";
 
-function getNearestDistance(levels: number[], currentPrice: number): { distance: number | null; percent: number | null } {
+function getNearestDistance(levels: SupportResistanceLevel[], currentPrice: number): { distance: number | null; percent: number | null } {
   if (levels.length === 0 || currentPrice === 0) {
     return { distance: null, percent: null };
   }
 
   const nearest = levels.reduce((closest, level) =>
-    Math.abs(level - currentPrice) < Math.abs(closest - currentPrice) ? level : closest,
+    Math.abs(level.price - currentPrice) < Math.abs(closest.price - currentPrice) ? level : closest,
   );
-  const distance = Math.abs(currentPrice - nearest);
+  const distance = Math.abs(currentPrice - nearest.price);
 
   return {
     distance,

@@ -1,4 +1,11 @@
-import type { BollingerBands, HistoricalPriceValidationResult, PricePoint, RsiStatus, SupportResistance } from "./types";
+import type {
+  BollingerBands,
+  HistoricalPriceValidationResult,
+  PricePoint,
+  RsiStatus,
+  SupportResistance,
+  SupportResistanceLevel,
+} from "./types";
 
 export function calculatePercentChange(current: number, previous: number): number {
   if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) {
@@ -116,34 +123,149 @@ export function validateHistoricalPrices(prices: PricePoint[], symbol = "UNKNOWN
 }
 
 export function calculateSupportResistance(prices: PricePoint[], currentPrice: number): SupportResistance {
-  const last90Levels = prices.slice(-90).flatMap((price) => [price.low, price.close, price.high]);
-  const bucketSize = currentPrice >= 10000 ? 1000 : currentPrice >= 1000 ? 50 : 5;
-  const buckets = new Map<number, number>();
+  const recentPrices = prices
+    .slice(-180)
+    .filter((price) => price.high > 0 && price.low > 0 && price.close > 0 && price.high >= price.low);
 
-  for (const level of last90Levels) {
-    const bucket = Math.round(level / bucketSize) * bucketSize;
-    buckets.set(bucket, (buckets.get(bucket) ?? 0) + 1);
+  if (recentPrices.length < 10 || currentPrice <= 0) {
+    return { supports: [], resistances: [] };
   }
 
-  const rankedLevels = [...buckets.entries()]
-    .map(([price, touches]) => ({ price, touches, distance: Math.abs(price - currentPrice) }))
-    .sort((a, b) => b.touches - a.touches || a.distance - b.distance)
-    .map((level) => level.price);
+  const low = Math.min(...recentPrices.map((price) => price.low));
+  const high = Math.max(...recentPrices.map((price) => price.high));
+  const range = high - low;
 
-  const supports = rankedLevels
-    .filter((price) => price < currentPrice)
-    .sort((a, b) => b - a)
-    .slice(0, 5);
+  if (range <= 0) {
+    return { supports: [], resistances: [] };
+  }
 
-  const resistances = rankedLevels
-    .filter((price) => price > currentPrice)
-    .sort((a, b) => a - b)
-    .slice(0, 5);
+  const binCount = Math.max(30, Math.min(50, Math.round(Math.sqrt(recentPrices.length) * 3)));
+  const binSize = range / binCount;
+  const volumeBins = Array.from({ length: binCount }, (_, index) => ({
+    index,
+    price: low + binSize * (index + 0.5),
+    volume: 0,
+  }));
+
+  for (const price of recentPrices) {
+    const typicalPrice = (price.high + price.low + price.close) / 3;
+    const index = Math.max(0, Math.min(binCount - 1, Math.floor((typicalPrice - low) / binSize)));
+    volumeBins[index].volume += price.volume ?? 0;
+  }
+
+  const maxVolume = Math.max(...volumeBins.map((bin) => bin.volume), 1);
+  const mergeDistance = Math.max(binSize * 0.85, currentPrice * 0.006);
+  const proximity = Math.max(binSize * 1.25, currentPrice * 0.012);
+  const pivotWindow = 3;
+  const pivotCandidates: Array<{ price: number; type: "support" | "resistance"; count: number }> = [];
+
+  for (let index = pivotWindow; index < recentPrices.length - pivotWindow; index += 1) {
+    const current = recentPrices[index];
+    const neighbors = recentPrices.slice(index - pivotWindow, index + pivotWindow + 1).filter((_, neighborIndex) => neighborIndex !== pivotWindow);
+    const isLocalHigh = neighbors.every((neighbor) => current.high >= neighbor.high);
+    const isLocalLow = neighbors.every((neighbor) => current.low <= neighbor.low);
+
+    if (isLocalHigh) {
+      pivotCandidates.push({ price: current.high, type: "resistance", count: 1 });
+    }
+
+    if (isLocalLow) {
+      pivotCandidates.push({ price: current.low, type: "support", count: 1 });
+    }
+  }
+
+  const pivotClusters = pivotCandidates.reduce<Array<{ price: number; type: "support" | "resistance"; count: number }>>((clusters, pivot) => {
+    const existing = clusters.find((cluster) => cluster.type === pivot.type && Math.abs(cluster.price - pivot.price) <= mergeDistance);
+    if (!existing) {
+      clusters.push({ ...pivot });
+      return clusters;
+    }
+
+    existing.price = (existing.price * existing.count + pivot.price) / (existing.count + 1);
+    existing.count += 1;
+    return clusters;
+  }, []);
+
+  const fibonacciLevels = [0.236, 0.382, 0.5, 0.618, 0.786].map((ratio) => high - range * ratio);
+  const candidates = new Map<string, SupportResistanceLevel>();
+
+  function addCandidate(price: number, type: "support" | "resistance", confidence: number, reason: string) {
+    if (!Number.isFinite(price) || price <= 0) return;
+    if (type === "support" && price >= currentPrice) return;
+    if (type === "resistance" && price <= currentPrice) return;
+
+    const key = `${type}:${Math.round(price / mergeDistance)}`;
+    const existing = candidates.get(key);
+
+    if (!existing) {
+      candidates.set(key, {
+        price,
+        type,
+        confidence: Math.max(0, Math.min(100, confidence)),
+        reason,
+      });
+      return;
+    }
+
+    existing.price = (existing.price + price) / 2;
+    existing.confidence = Math.max(existing.confidence, confidence) + 8;
+    existing.reason = Array.from(new Set([...existing.reason.split(" + "), reason])).join(" + ");
+  }
+
+  for (const bin of volumeBins) {
+    const volumeRatio = bin.volume / maxVolume;
+    if (volumeRatio < 0.45) continue;
+
+    addCandidate(
+      bin.price,
+      bin.price < currentPrice ? "support" : "resistance",
+      45 + volumeRatio * 35,
+      "거래량 집중 구간",
+    );
+  }
+
+  for (const pivot of pivotClusters) {
+    addCandidate(
+      pivot.price,
+      pivot.type,
+      Math.min(72, 36 + pivot.count * 12),
+      pivot.type === "support" ? "과거 저점 반복" : "과거 고점 반복",
+    );
+  }
+
+  for (const level of candidates.values()) {
+    const hasPivotOverlap = pivotClusters.some((pivot) => pivot.type === level.type && Math.abs(pivot.price - level.price) <= proximity);
+    const hasFibonacciOverlap = fibonacciLevels.some((fibPrice) => Math.abs(fibPrice - level.price) <= proximity);
+
+    if (hasPivotOverlap && level.reason.includes("거래량 집중 구간")) {
+      level.confidence += 16;
+      level.reason = "거래량 + 피벗 중첩";
+    }
+
+    if (hasFibonacciOverlap) {
+      level.confidence += 6;
+      if (!level.reason.includes("피보나치")) {
+        level.reason = `${level.reason} + 피보나치 보조 구간`;
+      }
+    }
+
+    const distancePenalty = Math.min(14, (Math.abs(level.price - currentPrice) / currentPrice) * 25);
+    level.confidence = Math.round(Math.max(0, Math.min(100, level.confidence - distancePenalty)));
+  }
+
+  function rankLevels(type: "support" | "resistance") {
+    return Array.from(candidates.values())
+      .filter((level) => level.type === type)
+      .sort((a, b) => b.confidence - a.confidence || Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))
+      .slice(0, 5);
+  }
+
+  const supports = rankLevels("support");
+  const resistances = rankLevels("resistance");
 
   return {
     supports,
     resistances,
-    resistanceMessage:
-      resistances.length === 0 ? "현재 의미 있는 저항선 없음 / 52주 최고가 돌파 구간" : undefined,
+    resistanceMessage: resistances.length === 0 ? "현재 의미 있는 저항선 없음 / 52주 최고가 돌파 구간" : undefined,
   };
 }

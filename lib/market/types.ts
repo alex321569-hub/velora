@@ -102,9 +102,16 @@ export interface MovingAverages {
   sma365: number | null;
 }
 
+export interface SupportResistanceLevel {
+  price: number;
+  type: "support" | "resistance";
+  confidence: number;
+  reason: string;
+}
+
 export interface SupportResistance {
-  supports: number[];
-  resistances: number[];
+  supports: SupportResistanceLevel[];
+  resistances: SupportResistanceLevel[];
   resistanceMessage?: string;
 }
 
