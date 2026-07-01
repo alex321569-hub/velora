@@ -7,9 +7,6 @@ import RecentPriceList from "@/components/RecentPriceList";
 import SearchBox from "@/components/SearchBox";
 import StockBasicInfo from "@/components/StockBasicInfo";
 import type { SearchFilter, StockAlias, StockAnalysisResponse } from "@/lib/market/types";
-import { getBestMatch } from "@/lib/market/searchStocks";
-
-const popularSymbols = ["AMAT", "NVDA", "AAPL", "TSM", "MSFT", "META", "005930", "000660"];
 
 export default function Home() {
   const [stock, setStock] = useState<StockAnalysisResponse | null>(null);
@@ -40,13 +37,6 @@ export default function Home() {
 
   function handleSelect(stockAlias: StockAlias) {
     void loadStock(stockAlias.symbol);
-  }
-
-  function handlePopularClick(symbol: string) {
-    const stockAlias = getBestMatch(symbol);
-    if (stockAlias) {
-      handleSelect(stockAlias);
-    }
   }
 
   function goHome() {
@@ -100,25 +90,6 @@ export default function Home() {
             />
           </div>
 
-          <div className="mt-7 flex justify-center">
-            <div className="mx-auto flex max-w-full items-center justify-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {popularSymbols.map((symbol) => {
-                const stockAlias = getBestMatch(symbol);
-                const label = stockAlias?.koreanName === "삼성전자" ? "삼성전자" : stockAlias?.koreanName === "SK하이닉스" ? "SK하이닉스" : symbol;
-
-                return (
-                  <button
-                    key={symbol}
-                    type="button"
-                    onClick={() => handlePopularClick(symbol)}
-                    className="shrink-0 rounded-full border border-line bg-surface/70 px-4 py-2 text-sm font-extrabold text-muted transition hover:bg-panel hover:text-ink"
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </section>
       ) : (
       <div className="mx-auto max-w-6xl">
