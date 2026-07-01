@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --page-bg: #050607;
+  --header-bg: rgba(5, 6, 7, 0.92);
+  --panel: #30343b;
+  --surface: #262a30;
+  --text: #f2f5f8;
+  --muted: #a7adb7;
+  --line: #41464f;
+  --shadow-glow: 0 18px 80px rgba(0, 0, 0, 0.35);
+  --page-accent-a: rgba(82, 217, 144, 0.12);
+  --page-accent-b: rgba(255, 91, 110, 0.1);
+}
+
+.theme-light {
+  color-scheme: light;
+  --page-bg: #eef2f5;
+  --header-bg: rgba(238, 242, 245, 0.92);
+  --panel: #ffffff;
+  --surface: #f4f7f9;
+  --text: #17202a;
+  --muted: #667382;
+  --line: #d8e0e7;
+  --shadow-glow: 0 18px 70px rgba(16, 24, 40, 0.12);
+  --page-accent-a: rgba(82, 217, 144, 0.18);
+  --page-accent-b: rgba(255, 91, 110, 0.1);
+}
+
+.theme-dark {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--page-bg);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, var(--page-accent-a), transparent 34rem),
+    radial-gradient(circle at top right, var(--page-accent-b), transparent 30rem),
+    var(--page-bg);
+  color: var(--text);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@keyframes fade-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-slide-up {
+  animation: fade-slide-up 420ms ease-out both;
+}

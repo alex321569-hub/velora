@@ -1,0 +1,26 @@
+import type { SearchFilter } from "./types";
+
+export const filterRecommendations: Record<SearchFilter, string[]> = {
+  all: ["AMAT", "NVDA", "AAPL", "TSM", "MSFT", "META", "005930.KS", "000660.KS"],
+  us: ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "JPM"],
+  kr: ["005930.KS", "000660.KS", "005380.KS", "035420.KS", "035720.KS", "068270.KS", "373220.KS", "012450.KS"],
+  etf: ["QQQ", "SPY", "VOO", "SOXX", "VTI", "SCHD", "TQQQ", "JEPQ"],
+  Technology: ["MSFT", "AAPL", "GOOGL", "META", "ORCL", "CRM", "ADBE", "INTU"],
+  Semiconductor: ["NVDA", "AMD", "TSM", "AMAT", "AVGO", "MU", "LRCX", "ASML"],
+  Healthcare: ["LLY", "JNJ", "PFE", "MRK", "ABBV", "UNH", "ISRG", "TMO"],
+  Financials: ["JPM", "BAC", "GS", "MS", "BLK", "SCHW", "AXP", "V"],
+  Energy: ["XOM", "CVX", "COP", "SLB", "EOG", "OXY", "HAL", "PSX"],
+  Consumer: ["AMZN", "TSLA", "MCD", "NKE", "SBUX", "HD", "COST", "WMT"],
+  Industrials: ["CAT", "GE", "HON", "UNP", "UPS", "BA", "RTX", "LMT"],
+  Materials: ["LIN", "APD", "SHW", "NEM", "FCX", "DOW", "DD", "NUE"],
+  Utilities: ["NEE", "DUK", "SO", "AEP", "EXC", "SRE", "D", "XEL"],
+  "Real Estate": ["PLD", "AMT", "EQIX", "SPG", "O", "CCI", "PSA", "WELL"],
+  Defense: ["LMT", "RTX", "NOC", "GD", "BA", "HII", "LHX", "TXT"],
+  Aerospace: ["BA", "GE", "RTX", "LMT", "NOC", "TDG", "TXT", "HEI"],
+  AI: ["NVDA", "MSFT", "GOOGL", "META", "AMD", "AVGO", "PLTR", "SMCI"],
+  Bio: ["LLY", "AMGN", "GILD", "BIIB", "VRTX", "REGN", "MRNA", "ILMN"],
+  EV: ["TSLA", "RIVN", "LI", "NIO", "XPEV", "BYD", "HYUNDAI", "GM"],
+  Software: ["MSFT", "ORCL", "CRM", "ADBE", "NOW", "INTU", "PANW", "SNOW"],
+  Cloud: ["MSFT", "AMZN", "GOOGL", "ORCL", "CRM", "NOW", "SNOW", "NET"],
+  Cybersecurity: ["PANW", "CRWD", "ZS", "FTNT", "OKTA", "S", "NET", "CHKP"],
+};
