@@ -41,6 +41,8 @@ function buildBasicInfo(profile: CompanyProfile, quote: Quote, currentPrice: num
     currency: quote.currency,
     dataSource: quote.dataSource,
     dataSourceNotice: quote.dataSourceNotice,
+    marketState: quote.marketState,
+    fetchedAt: quote.fetchedAt,
   };
 }
 
@@ -134,8 +136,9 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   const validation = validateHistoricalPrices(historicalPrices, symbol);
   const sortedPrices = validation.sortedPrices;
   const closes = sortedPrices.map((price) => price.close);
-  const currentPrice = closes.at(-1) ?? 0;
-  const previousClose = closes.at(-2) ?? effectiveQuote.previousClose ?? currentPrice;
+  const lastHistoricalClose = closes.at(-1) ?? 0;
+  const currentPrice = effectiveQuote.currentPrice ?? lastHistoricalClose;
+  const previousClose = effectiveQuote.previousClose ?? closes.at(-2) ?? lastHistoricalClose;
   const basic = buildBasicInfo(profile, effectiveQuote, currentPrice, previousClose);
 
   if (!validation.isValid || closes.length === 0 || currentPrice <= 0) {
@@ -167,8 +170,8 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
     };
   }
 
-  if (effectiveQuote.currentPrice !== null && Math.abs(effectiveQuote.currentPrice - currentPrice) > 0.0001) {
-    console.warn(`[market:${provider.capabilities.name}] ${symbol} quote price differs from last historical close. Using last close.`);
+  if (effectiveQuote.currentPrice !== null && Math.abs(effectiveQuote.currentPrice - lastHistoricalClose) > 0.0001) {
+    console.warn(`[market:${provider.capabilities.name}] ${symbol} quote price differs from last historical close. Using market-state quote price.`);
   }
 
   const week52High = Math.max(...sortedPrices.map((price) => price.high));

@@ -67,6 +67,8 @@ export interface Quote {
   currency: "USD" | "KRW";
   dataSource: string;
   dataSourceNotice?: string;
+  marketState?: "PRE" | "OPEN" | "POST" | "CLOSED" | "UNKNOWN";
+  fetchedAt?: string;
 }
 
 export interface ShortInterest {
@@ -86,6 +88,8 @@ export interface StockBasicInfo {
   currency: "USD" | "KRW";
   dataSource: string;
   dataSourceNotice?: string;
+  marketState?: "PRE" | "OPEN" | "POST" | "CLOSED" | "UNKNOWN";
+  fetchedAt?: string;
 }
 
 export interface BollingerBands {

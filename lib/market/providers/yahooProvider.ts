@@ -9,6 +9,11 @@ interface YahooChartResult {
     regularMarketPrice?: number;
     chartPreviousClose?: number;
     previousClose?: number;
+    currentTradingPeriod?: {
+      pre?: YahooTradingPeriod;
+      regular?: YahooTradingPeriod;
+      post?: YahooTradingPeriod;
+    };
   };
   timestamp?: number[];
   indicators?: {
@@ -19,6 +24,29 @@ interface YahooChartResult {
       close?: Array<number | null>;
       volume?: Array<number | null>;
     }>;
+  };
+}
+
+interface YahooTradingPeriod {
+  start?: number;
+  end?: number;
+}
+
+interface YahooQuoteResult {
+  symbol?: string;
+  currency?: string;
+  marketState?: string;
+  preMarketPrice?: number;
+  regularMarketPrice?: number;
+  postMarketPrice?: number;
+  regularMarketPreviousClose?: number;
+  marketCap?: number;
+}
+
+interface YahooQuoteResponse {
+  quoteResponse?: {
+    result?: YahooQuoteResult[];
+    error?: unknown;
   };
 }
 
@@ -130,6 +158,34 @@ async function fetchYahooChart(symbol: string, range = "1y"): Promise<YahooChart
   return payload.chart?.result?.[0] ?? null;
 }
 
+async function fetchYahooQuote(symbol: string): Promise<YahooQuoteResult | null> {
+  const yahooSymbol = encodeURIComponent(toYahooSymbol(symbol));
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yahooSymbol}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: yahooHeaders,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.warn(`[market:yahoo] quote request failed for ${symbol}: ${response.status}`);
+      return null;
+    }
+
+    const payload = (await response.json()) as YahooQuoteResponse;
+    if (payload.quoteResponse?.error) {
+      console.warn(`[market:yahoo] quote error for ${symbol}`, payload.quoteResponse.error);
+      return null;
+    }
+
+    return payload.quoteResponse?.result?.[0] ?? null;
+  } catch (error) {
+    console.warn(`[market:yahoo] quote request failed for ${symbol}`, error);
+    return null;
+  }
+}
+
 async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
   const yahooSymbol = encodeURIComponent(toYahooSymbol(symbol));
   const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${yahooSymbol}?modules=price`;
@@ -151,6 +207,80 @@ async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
     console.warn(`[market:yahoo] quoteSummary marketCap failed for ${symbol}`, error);
     return null;
   }
+}
+
+function normalizeMarketState(marketState?: string): Quote["marketState"] {
+  const normalized = marketState?.toUpperCase();
+
+  if (normalized === "PRE" || normalized === "PREPRE") {
+    return "PRE";
+  }
+
+  if (normalized === "REGULAR") {
+    return "OPEN";
+  }
+
+  if (normalized === "POST" || normalized === "POSTPOST") {
+    return "POST";
+  }
+
+  if (normalized === "CLOSED") {
+    return "CLOSED";
+  }
+
+  return "UNKNOWN";
+}
+
+function inferMarketStateFromChart(result: YahooChartResult | null): Quote["marketState"] {
+  const now = Math.floor(Date.now() / 1000);
+  const period = result?.meta?.currentTradingPeriod;
+
+  if (period?.pre?.start && period.pre.end && now >= period.pre.start && now < period.pre.end) {
+    return "PRE";
+  }
+
+  if (period?.regular?.start && period.regular.end && now >= period.regular.start && now < period.regular.end) {
+    return "OPEN";
+  }
+
+  if (period?.post?.start && period.post.end && now >= period.post.start && now < period.post.end) {
+    return "POST";
+  }
+
+  return "CLOSED";
+}
+
+function selectMarketPrice(quote: YahooQuoteResult | null): {
+  currentPrice: number | null;
+  marketState: Quote["marketState"];
+} {
+  const marketState = normalizeMarketState(quote?.marketState);
+
+  if (marketState === "PRE" && typeof quote?.preMarketPrice === "number") {
+    return { currentPrice: quote.preMarketPrice, marketState };
+  }
+
+  if (marketState === "OPEN" && typeof quote?.regularMarketPrice === "number") {
+    return { currentPrice: quote.regularMarketPrice, marketState };
+  }
+
+  if (marketState === "POST" && typeof quote?.postMarketPrice === "number") {
+    return { currentPrice: quote.postMarketPrice, marketState };
+  }
+
+  if (typeof quote?.regularMarketPrice === "number") {
+    return { currentPrice: quote.regularMarketPrice, marketState };
+  }
+
+  if (typeof quote?.postMarketPrice === "number") {
+    return { currentPrice: quote.postMarketPrice, marketState };
+  }
+
+  if (typeof quote?.preMarketPrice === "number") {
+    return { currentPrice: quote.preMarketPrice, marketState };
+  }
+
+  return { currentPrice: null, marketState };
 }
 
 export const yahooMarketDataProvider: StockMarketProvider = {
@@ -193,6 +323,22 @@ export const yahooMarketDataProvider: StockMarketProvider = {
       return null;
     }
 
+    const quote = await fetchYahooQuote(symbol);
+    if (quote) {
+      const selected = selectMarketPrice(quote);
+
+      return {
+        symbol,
+        currentPrice: selected.currentPrice,
+        previousClose: quote.regularMarketPreviousClose ?? null,
+        marketCap: quote.marketCap ?? null,
+        currency: quote.currency === "KRW" ? "KRW" : profile.currency,
+        dataSource: this.capabilities.name,
+        marketState: selected.marketState,
+        fetchedAt: new Date().toISOString(),
+      };
+    }
+
     const result = await fetchYahooChart(symbol, "1mo");
     if (!result) {
       return {
@@ -202,6 +348,8 @@ export const yahooMarketDataProvider: StockMarketProvider = {
         marketCap: null,
         currency: profile.currency,
         dataSource: this.capabilities.name,
+        marketState: "UNKNOWN",
+        fetchedAt: new Date().toISOString(),
       };
     }
 
@@ -214,6 +362,8 @@ export const yahooMarketDataProvider: StockMarketProvider = {
       marketCap,
       currency: result.meta?.currency === "KRW" ? "KRW" : profile.currency,
       dataSource: this.capabilities.name,
+      marketState: inferMarketStateFromChart(result),
+      fetchedAt: new Date().toISOString(),
     };
   },
 

@@ -202,6 +202,8 @@ function buildBasicInfo(profile: CompanyProfile, quote: Quote, currentPrice: num
     currency: quote.currency,
     dataSource: quote.dataSource,
     dataSourceNotice: quote.dataSourceNotice,
+    marketState: quote.marketState,
+    fetchedAt: quote.fetchedAt,
   };
 }
 
@@ -253,6 +255,8 @@ export const mockMarketDataProvider: StockMarketProvider = {
       currency: seed.currency,
       dataSource: this.capabilities.name,
       dataSourceNotice: mockNotice,
+      marketState: "CLOSED",
+      fetchedAt: new Date().toISOString(),
     };
   },
 

@@ -14,6 +14,22 @@ function formatMoney(value: number, currency: StockBasicInfoType["currency"]) {
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function getMarketStateLabel(marketState: StockBasicInfoType["marketState"]) {
+  if (marketState === "PRE") {
+    return "🟡 PRE";
+  }
+
+  if (marketState === "OPEN") {
+    return "🟢 OPEN";
+  }
+
+  if (marketState === "POST") {
+    return "🔵 POST";
+  }
+
+  return "⚪ CLOSED";
+}
+
 export default function StockBasicInfo({
   basic,
   flashDirection = null,
@@ -61,6 +77,9 @@ export default function StockBasicInfo({
           >
             {formatMoney(basic.currentPrice, basic.currency)}
           </p>
+          <span className="ml-2 inline-flex rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-extrabold text-muted">
+            {getMarketStateLabel(basic.marketState)}
+          </span>
           <p className={`text-sm font-extrabold ${positive ? "text-positive" : "text-negative"}`}>
             {positive ? "▲" : "▼"} {Math.abs(basic.changePercent).toFixed(2)}%
           </p>
