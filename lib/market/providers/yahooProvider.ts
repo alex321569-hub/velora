@@ -40,6 +40,9 @@ interface YahooQuoteResult {
   regularMarketPrice?: number;
   postMarketPrice?: number;
   regularMarketPreviousClose?: number;
+  preMarketChangePercent?: number;
+  regularMarketChangePercent?: number;
+  postMarketChangePercent?: number;
   marketCap?: number;
 }
 
@@ -252,35 +255,80 @@ function inferMarketStateFromChart(result: YahooChartResult | null): Quote["mark
 
 function selectMarketPrice(quote: YahooQuoteResult | null): {
   currentPrice: number | null;
+  previousClose: number | null;
+  changePercent: number | null;
   marketState: Quote["marketState"];
 } {
   const marketState = normalizeMarketState(quote?.marketState);
+  const previousClose = quote?.regularMarketPreviousClose ?? null;
+
+  function calculateChangePercent(currentPrice: number | null, fallbackChangePercent?: number) {
+    if (typeof fallbackChangePercent === "number") {
+      return fallbackChangePercent;
+    }
+
+    if (currentPrice === null || previousClose === null || previousClose === 0) {
+      return null;
+    }
+
+    return ((currentPrice - previousClose) / previousClose) * 100;
+  }
 
   if (marketState === "PRE" && typeof quote?.preMarketPrice === "number") {
-    return { currentPrice: quote.preMarketPrice, marketState };
+    return {
+      currentPrice: quote.preMarketPrice,
+      previousClose,
+      changePercent: calculateChangePercent(quote.preMarketPrice, quote.preMarketChangePercent),
+      marketState,
+    };
   }
 
   if (marketState === "OPEN" && typeof quote?.regularMarketPrice === "number") {
-    return { currentPrice: quote.regularMarketPrice, marketState };
+    return {
+      currentPrice: quote.regularMarketPrice,
+      previousClose,
+      changePercent: calculateChangePercent(quote.regularMarketPrice, quote.regularMarketChangePercent),
+      marketState,
+    };
   }
 
   if (marketState === "POST" && typeof quote?.postMarketPrice === "number") {
-    return { currentPrice: quote.postMarketPrice, marketState };
+    return {
+      currentPrice: quote.postMarketPrice,
+      previousClose,
+      changePercent: calculateChangePercent(quote.postMarketPrice, quote.postMarketChangePercent),
+      marketState,
+    };
   }
 
   if (typeof quote?.regularMarketPrice === "number") {
-    return { currentPrice: quote.regularMarketPrice, marketState };
+    return {
+      currentPrice: quote.regularMarketPrice,
+      previousClose,
+      changePercent: calculateChangePercent(quote.regularMarketPrice, quote.regularMarketChangePercent),
+      marketState,
+    };
   }
 
   if (typeof quote?.postMarketPrice === "number") {
-    return { currentPrice: quote.postMarketPrice, marketState };
+    return {
+      currentPrice: quote.postMarketPrice,
+      previousClose,
+      changePercent: calculateChangePercent(quote.postMarketPrice, quote.postMarketChangePercent),
+      marketState,
+    };
   }
 
   if (typeof quote?.preMarketPrice === "number") {
-    return { currentPrice: quote.preMarketPrice, marketState };
+    return {
+      currentPrice: quote.preMarketPrice,
+      previousClose,
+      changePercent: calculateChangePercent(quote.preMarketPrice, quote.preMarketChangePercent),
+      marketState,
+    };
   }
 
-  return { currentPrice: null, marketState };
+  return { currentPrice: null, previousClose, changePercent: null, marketState };
 }
 
 export const yahooMarketDataProvider: StockMarketProvider = {
@@ -330,7 +378,8 @@ export const yahooMarketDataProvider: StockMarketProvider = {
       return {
         symbol,
         currentPrice: selected.currentPrice,
-        previousClose: quote.regularMarketPreviousClose ?? null,
+        previousClose: selected.previousClose,
+        changePercent: selected.changePercent,
         marketCap: quote.marketCap ?? null,
         currency: quote.currency === "KRW" ? "KRW" : profile.currency,
         dataSource: this.capabilities.name,
@@ -345,6 +394,7 @@ export const yahooMarketDataProvider: StockMarketProvider = {
         symbol,
         currentPrice: null,
         previousClose: null,
+        changePercent: null,
         marketCap: null,
         currency: profile.currency,
         dataSource: this.capabilities.name,
@@ -358,7 +408,8 @@ export const yahooMarketDataProvider: StockMarketProvider = {
     return {
       symbol,
       currentPrice: result.meta?.regularMarketPrice ?? null,
-      previousClose: result.meta?.previousClose ?? result.meta?.chartPreviousClose ?? null,
+      previousClose: null,
+      changePercent: null,
       marketCap,
       currency: result.meta?.currency === "KRW" ? "KRW" : profile.currency,
       dataSource: this.capabilities.name,

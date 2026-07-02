@@ -29,6 +29,15 @@ function getNearestDistance(levels: SupportResistanceLevel[], currentPrice: numb
 }
 
 function buildBasicInfo(profile: CompanyProfile, quote: Quote, currentPrice: number, previousClose: number): StockBasicInfo {
+  const changePercent = quote.changePercent ?? calculatePercentChange(currentPrice, previousClose);
+
+  console.log("quote change debug", {
+    currentPrice,
+    previousClose,
+    changePercent,
+    marketState: quote.marketState,
+  });
+
   return {
     symbol: profile.symbol,
     name: profile.name,
@@ -37,7 +46,7 @@ function buildBasicInfo(profile: CompanyProfile, quote: Quote, currentPrice: num
     country: profile.country,
     currentPrice,
     previousClose,
-    changePercent: calculatePercentChange(currentPrice, previousClose),
+    changePercent,
     currency: quote.currency,
     dataSource: quote.dataSource,
     dataSourceNotice: quote.dataSourceNotice,
@@ -128,6 +137,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
     symbol,
     currentPrice: null,
     previousClose: null,
+    changePercent: null,
     marketCap: null,
     currency: profile.currency,
     dataSource: provider.capabilities.name,

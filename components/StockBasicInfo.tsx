@@ -81,7 +81,7 @@ export default function StockBasicInfo({
             {getMarketStateLabel(basic.marketState)}
           </span>
           <p className={`text-sm font-extrabold ${positive ? "text-positive" : "text-negative"}`}>
-            {positive ? "▲" : "▼"} {Math.abs(basic.changePercent).toFixed(2)}%
+            전일 대비: {positive ? "▲" : "▼"} {Math.abs(basic.changePercent).toFixed(2)}%
           </p>
           {liveStatus && (
             <LivePriceBadge

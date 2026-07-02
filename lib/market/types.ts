@@ -63,6 +63,7 @@ export interface Quote {
   symbol: string;
   currentPrice: number | null;
   previousClose: number | null;
+  changePercent?: number | null;
   marketCap: number | null;
   currency: "USD" | "KRW";
   dataSource: string;
