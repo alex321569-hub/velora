@@ -72,3 +72,58 @@ input {
 .animate-fade-slide-up {
   animation: fade-slide-up 420ms ease-out both;
 }
+
+@keyframes price-flash-up {
+  0%,
+  100% {
+    background: transparent;
+    box-shadow: none;
+    color: var(--text);
+  }
+
+  35% {
+    background: rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.32);
+    color: #6ee7b7;
+  }
+}
+
+@keyframes price-flash-down {
+  0%,
+  100% {
+    background: transparent;
+    box-shadow: none;
+    color: var(--text);
+  }
+
+  35% {
+    background: rgba(239, 68, 68, 0.2);
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.32);
+    color: #fca5a5;
+  }
+}
+
+@keyframes live-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
+.animate-price-flash-up {
+  animation: price-flash-up 800ms ease-out both;
+}
+
+.animate-price-flash-down {
+  animation: price-flash-down 800ms ease-out both;
+}
+
+.animate-live-dot {
+  animation: live-dot 800ms ease-out both;
+}

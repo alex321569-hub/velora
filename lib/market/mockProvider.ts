@@ -153,6 +153,42 @@ function getNearestDistance(levels: SupportResistanceLevel[], currentPrice: numb
   };
 }
 
+function getSupportDistanceScore(percent: number | null) {
+  if (percent === null) {
+    return -5;
+  }
+
+  if (percent <= 3) {
+    return -5;
+  }
+
+  if (percent <= 10) {
+    return 10;
+  }
+
+  if (percent <= 20) {
+    return 3;
+  }
+
+  return 0;
+}
+
+function getResistanceDistanceScore(percent: number | null, isNearWeek52High: boolean) {
+  if (percent === null) {
+    return isNearWeek52High ? 5 : 0;
+  }
+
+  if (percent <= 3) {
+    return -5;
+  }
+
+  if (percent < 10) {
+    return 3;
+  }
+
+  return 10;
+}
+
 function buildBasicInfo(profile: CompanyProfile, quote: Quote, currentPrice: number, previousClose: number): StockBasicInfo {
   return {
     symbol: profile.symbol,
@@ -306,6 +342,7 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
   const nearestSupport = getNearestDistance(supportResistance.supports, currentPrice);
   const nearestResistance = getNearestDistance(supportResistance.resistances, currentPrice);
   const highDrawdownPercent = calculatePercentChange(currentPrice, week52High);
+  const highDistancePercent = Math.abs(highDrawdownPercent);
   const range = week52High - week52Low;
   const rangePosition = range === 0 ? 0.5 : (currentPrice - week52Low) / range;
   const trendStatus =
@@ -316,12 +353,24 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
         : "횡보";
   const pricePosition =
     rangePosition >= 0.85 ? "52주 고점 근처" : rangePosition <= 0.15 ? "52주 저점 근처" : "중간 구간";
-  const compositeScore =
-    (movingAverages.sma20 !== null && currentPrice > movingAverages.sma20 ? 20 : 0) +
-    (movingAverages.sma60 !== null && currentPrice > movingAverages.sma60 ? 20 : 0) +
-    (rsi >= 45 && rsi <= 70 ? 20 : 0) +
-    (Math.abs(highDrawdownPercent) <= 15 ? 20 : 0) +
-    (recentTenReturn > 0 ? 20 : 0);
+  let compositeScore = 0;
+  compositeScore += movingAverages.sma20 !== null && currentPrice > movingAverages.sma20 ? 10 : 0;
+  compositeScore += movingAverages.sma60 !== null && currentPrice > movingAverages.sma60 ? 10 : 0;
+  compositeScore += movingAverages.sma120 !== null && currentPrice > movingAverages.sma120 ? 10 : 0;
+  compositeScore += movingAverages.sma20 !== null && movingAverages.sma60 !== null && movingAverages.sma20 > movingAverages.sma60 ? 10 : 0;
+  compositeScore += movingAverages.sma60 !== null && movingAverages.sma120 !== null && movingAverages.sma60 > movingAverages.sma120 ? 10 : 0;
+  compositeScore += rsi >= 45 && rsi <= 65 ? 15 : 0;
+  compositeScore += rsi > 65 && rsi < 70 ? 5 : 0;
+  compositeScore += rsi >= 70 ? -10 : 0;
+  compositeScore += rsi <= 35 ? -10 : 0;
+  compositeScore += recentTenReturn > 0 && recentTenReturn <= 5 ? 10 : 0;
+  compositeScore += recentTenReturn > 5 && recentTenReturn < 12 ? 5 : 0;
+  compositeScore += recentTenReturn >= 12 ? -10 : 0;
+  compositeScore += highDrawdownPercent <= -5 && highDrawdownPercent >= -20 ? 10 : 0;
+  compositeScore += highDistancePercent <= 2 ? -5 : 0;
+  compositeScore += getSupportDistanceScore(nearestSupport.percent);
+  compositeScore += getResistanceDistanceScore(nearestResistance.percent, highDistancePercent <= 2);
+  compositeScore = Math.max(0, Math.min(100, compositeScore));
 
   return {
     basic,
@@ -344,7 +393,10 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
         nearestResistanceDistancePercent: nearestResistance.percent,
         score: compositeScore,
         scoreLabel: compositeScore >= 80 ? "매우 양호" : compositeScore >= 65 ? "양호" : compositeScore >= 50 ? "중립" : compositeScore >= 35 ? "주의" : "위험",
-        warning: rsi >= 75 ? "과열 주의" : undefined,
+        warning:
+          rsi >= 70 || recentTenReturn >= 12 || highDistancePercent <= 2 || currentPrice > bollingerBands.upper
+            ? "단기 과열 가능성이 있습니다."
+            : undefined,
       },
       shortInterestLabel: shortInterest?.label ?? "데이터 없음",
     },

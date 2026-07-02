@@ -1,11 +1,12 @@
 "use client";
 
 import { AlertTriangle, LineChart, Moon, Search, Sun } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import AnalysisCards from "@/components/AnalysisCards";
 import RecentPriceList from "@/components/RecentPriceList";
 import SearchBox from "@/components/SearchBox";
 import StockBasicInfo from "@/components/StockBasicInfo";
+import { useLiveQuote } from "@/hooks/useLiveQuote";
 import type { SearchFilter, StockAlias, StockAnalysisResponse } from "@/lib/market/types";
 
 export default function Home() {
@@ -15,6 +16,15 @@ export default function Home() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedFilter, setSelectedFilter] = useState<SearchFilter>("all");
   const hasSearched = Boolean(stock || loading || error);
+  const handleLiveUpdate = useCallback((nextStock: StockAnalysisResponse) => {
+    setStock(nextStock);
+  }, []);
+  const liveQuote = useLiveQuote({
+    symbol: stock?.basic.symbol ?? null,
+    enabled: Boolean(stock && !loading),
+    currentPrice: stock?.basic.currentPrice ?? null,
+    onUpdate: handleLiveUpdate,
+  });
 
   async function loadStock(symbol: string) {
     setLoading(true);
@@ -126,7 +136,15 @@ export default function Home() {
           {error && <div className="py-20 text-center text-sm font-bold text-negative">{error}</div>}
           {!loading && !error && stock && (
             <>
-              <StockBasicInfo basic={stock.basic} />
+              <StockBasicInfo
+                basic={stock.basic}
+                flashDirection={liveQuote.flashDirection}
+                liveStatus={{
+                  secondsSinceUpdate: liveQuote.secondsSinceUpdate,
+                  secondsUntilUpdate: liveQuote.secondsUntilUpdate,
+                  refreshError: liveQuote.refreshError,
+                }}
+              />
               <RecentPriceList prices={stock.recentPrices} currency={stock.basic.currency} />
               <AnalysisCards indicators={stock.indicators} currency={stock.basic.currency} />
               <section className="border-t border-line pt-5">

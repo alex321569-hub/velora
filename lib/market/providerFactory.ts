@@ -64,6 +64,42 @@ function getScoreLabel(score: number) {
   return "위험";
 }
 
+function getSupportDistanceScore(percent: number | null) {
+  if (percent === null) {
+    return -5;
+  }
+
+  if (percent <= 3) {
+    return -5;
+  }
+
+  if (percent <= 10) {
+    return 10;
+  }
+
+  if (percent <= 20) {
+    return 3;
+  }
+
+  return 0;
+}
+
+function getResistanceDistanceScore(percent: number | null, isNearWeek52High: boolean) {
+  if (percent === null) {
+    return isNearWeek52High ? 5 : 0;
+  }
+
+  if (percent <= 3) {
+    return -5;
+  }
+
+  if (percent < 10) {
+    return 3;
+  }
+
+  return 10;
+}
+
 export function getMarketProvider(): StockMarketProvider {
   const providerName = process.env.MARKET_PROVIDER?.toLowerCase();
 
@@ -186,8 +222,8 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   compositeScore += recentTenReturn >= 12 ? -10 : 0;
   compositeScore += highDrawdownPercent <= -5 && highDrawdownPercent >= -20 ? 10 : 0;
   compositeScore += highDistancePercent <= 2 ? -5 : 0;
-  compositeScore += nearestSupport.percent !== null && nearestSupport.percent >= 3 ? 10 : 0;
-  compositeScore += nearestSupport.percent !== null && nearestSupport.percent <= 1 ? -5 : 0;
+  compositeScore += getSupportDistanceScore(nearestSupport.percent);
+  compositeScore += getResistanceDistanceScore(nearestResistance.percent, highDistancePercent <= 2);
   compositeScore = Math.max(0, Math.min(100, compositeScore));
   const hasOverheatWarning =
     rsi >= 70 ||

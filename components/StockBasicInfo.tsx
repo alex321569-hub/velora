@@ -1,4 +1,6 @@
+import type { PriceFlashDirection } from "@/hooks/useLiveQuote";
 import type { StockBasicInfo as StockBasicInfoType } from "@/lib/market/types";
+import LivePriceBadge from "./LivePriceBadge";
 
 function formatMoney(value: number, currency: StockBasicInfoType["currency"]) {
   if (!Number.isFinite(value) || value <= 0) {
@@ -12,8 +14,26 @@ function formatMoney(value: number, currency: StockBasicInfoType["currency"]) {
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function StockBasicInfo({ basic }: { basic: StockBasicInfoType }) {
+export default function StockBasicInfo({
+  basic,
+  flashDirection = null,
+  liveStatus,
+}: {
+  basic: StockBasicInfoType;
+  flashDirection?: PriceFlashDirection;
+  liveStatus?: {
+    secondsSinceUpdate: number;
+    secondsUntilUpdate: number;
+    refreshError: string;
+  };
+}) {
   const positive = basic.changePercent >= 0;
+  const flashClass =
+    flashDirection === "up"
+      ? "animate-price-flash-up"
+      : flashDirection === "down"
+        ? "animate-price-flash-down"
+        : "";
 
   return (
     <section className="border-b border-line pb-5">
@@ -33,10 +53,25 @@ export default function StockBasicInfo({ basic }: { basic: StockBasicInfoType })
         </div>
         <div>
           <p className="text-xs font-bold text-muted">현재가</p>
-          <p className="mt-1 text-base font-extrabold text-ink">{formatMoney(basic.currentPrice, basic.currency)}</p>
+          <p
+            className={[
+              "mt-1 inline-flex rounded-md px-2 py-1 text-base font-extrabold text-ink transition-colors",
+              flashClass,
+            ].join(" ")}
+          >
+            {formatMoney(basic.currentPrice, basic.currency)}
+          </p>
           <p className={`text-sm font-extrabold ${positive ? "text-positive" : "text-negative"}`}>
             {positive ? "▲" : "▼"} {Math.abs(basic.changePercent).toFixed(2)}%
           </p>
+          {liveStatus && (
+            <LivePriceBadge
+              secondsSinceUpdate={liveStatus.secondsSinceUpdate}
+              secondsUntilUpdate={liveStatus.secondsUntilUpdate}
+              refreshError={liveStatus.refreshError}
+              flashDirection={flashDirection}
+            />
+          )}
         </div>
         <div>
           <p className="text-xs font-bold text-muted">데이터 출처</p>

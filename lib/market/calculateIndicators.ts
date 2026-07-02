@@ -122,146 +122,263 @@ export function validateHistoricalPrices(prices: PricePoint[], symbol = "UNKNOWN
   };
 }
 
-export function calculateSupportResistance(prices: PricePoint[], currentPrice: number): SupportResistance {
-  const recentPrices = prices
-    .slice(-180)
-    .filter((price) => price.high > 0 && price.low > 0 && price.close > 0 && price.high >= price.low);
+const roundPrice = (value: number) => Math.round(value * 100) / 100;
 
-  if (recentPrices.length < 10 || currentPrice <= 0) {
-    return { supports: [], resistances: [] };
+const percentDistance = (a: number, b: number) => Math.abs(a - b) / b;
+
+function clusterPrices(
+  candidates: SupportResistanceLevel[],
+  currentPrice: number,
+  tolerancePct = 0.015,
+): SupportResistanceLevel[] {
+  const sorted = [...candidates].sort((a, b) => a.price - b.price);
+  const clusters: SupportResistanceLevel[][] = [];
+
+  for (const candidate of sorted) {
+    const lastCluster = clusters[clusters.length - 1];
+
+    if (!lastCluster) {
+      clusters.push([candidate]);
+      continue;
+    }
+
+    const average = lastCluster.reduce((sum, item) => sum + item.price, 0) / lastCluster.length;
+
+    if (Math.abs(candidate.price - average) / currentPrice <= tolerancePct) {
+      lastCluster.push(candidate);
+    } else {
+      clusters.push([candidate]);
+    }
   }
 
-  const low = Math.min(...recentPrices.map((price) => price.low));
-  const high = Math.max(...recentPrices.map((price) => price.high));
-  const range = high - low;
+  return clusters.map((cluster) => {
+    const totalWeight = cluster.reduce((sum, item) => sum + Math.max(item.confidence, 1), 0);
+    const weightedPrice =
+      cluster.reduce((sum, item) => sum + item.price * Math.max(item.confidence, 1), 0) / totalWeight;
+    const confidence = Math.min(
+      100,
+      Math.round(
+        cluster.reduce((sum, item) => sum + item.confidence, 0) / cluster.length +
+          Math.min(cluster.length * 6, 18),
+      ),
+    );
+    const reasons = Array.from(new Set(cluster.map((item) => item.reason)));
 
-  if (range <= 0) {
-    return { supports: [], resistances: [] };
+    return {
+      price: roundPrice(weightedPrice),
+      type: cluster[0].type,
+      confidence,
+      reason: reasons.slice(0, 2).join(" + "),
+    };
+  });
+}
+
+function getPivotCandidates(prices: PricePoint[], currentPrice: number): SupportResistanceLevel[] {
+  const candidates: SupportResistanceLevel[] = [];
+  const lookback = 3;
+  const recent = prices.slice(-90);
+
+  for (let index = lookback; index < recent.length - lookback; index += 1) {
+    const item = recent[index];
+    const previous = recent.slice(index - lookback, index);
+    const next = recent.slice(index + 1, index + lookback + 1);
+
+    const isPivotLow = previous.every((price) => item.low <= price.low) && next.every((price) => item.low <= price.low);
+    const isPivotHigh =
+      previous.every((price) => item.high >= price.high) && next.every((price) => item.high >= price.high);
+    const recencyBonus = Math.round((index / recent.length) * 15);
+
+    if (isPivotLow && item.low < currentPrice) {
+      candidates.push({
+        price: item.low,
+        type: "support",
+        confidence: 55 + recencyBonus,
+        reason: "최근 피벗 저점",
+      });
+    }
+
+    if (isPivotHigh && item.high > currentPrice) {
+      candidates.push({
+        price: item.high,
+        type: "resistance",
+        confidence: 55 + recencyBonus,
+        reason: "최근 피벗 고점",
+      });
+    }
   }
 
-  const binCount = Math.max(30, Math.min(50, Math.round(Math.sqrt(recentPrices.length) * 3)));
-  const binSize = range / binCount;
-  const volumeBins = Array.from({ length: binCount }, (_, index) => ({
+  return candidates;
+}
+
+function getVolumeProfileCandidates(prices: PricePoint[], currentPrice: number): SupportResistanceLevel[] {
+  const recent = prices.slice(-120);
+  const withVolume = recent.filter((price) => typeof price.volume === "number");
+
+  if (withVolume.length < 30) {
+    return [];
+  }
+
+  const minPrice = Math.min(...withVolume.map((price) => price.low));
+  const maxPrice = Math.max(...withVolume.map((price) => price.high));
+
+  if (minPrice <= 0 || maxPrice <= minPrice) {
+    return [];
+  }
+
+  const binCount = 40;
+  const binSize = (maxPrice - minPrice) / binCount;
+  const bins = Array.from({ length: binCount }, (_, index) => ({
     index,
-    price: low + binSize * (index + 0.5),
+    low: minPrice + index * binSize,
+    high: minPrice + (index + 1) * binSize,
     volume: 0,
   }));
 
-  for (const price of recentPrices) {
+  for (const price of withVolume) {
     const typicalPrice = (price.high + price.low + price.close) / 3;
-    const index = Math.max(0, Math.min(binCount - 1, Math.floor((typicalPrice - low) / binSize)));
-    volumeBins[index].volume += price.volume ?? 0;
+    const index = Math.min(binCount - 1, Math.max(0, Math.floor((typicalPrice - minPrice) / binSize)));
+    bins[index].volume += price.volume ?? 0;
   }
 
-  const maxVolume = Math.max(...volumeBins.map((bin) => bin.volume), 1);
-  const mergeDistance = Math.max(binSize * 0.85, currentPrice * 0.006);
-  const proximity = Math.max(binSize * 1.25, currentPrice * 0.012);
-  const pivotWindow = 3;
-  const pivotCandidates: Array<{ price: number; type: "support" | "resistance"; count: number }> = [];
-
-  for (let index = pivotWindow; index < recentPrices.length - pivotWindow; index += 1) {
-    const current = recentPrices[index];
-    const neighbors = recentPrices.slice(index - pivotWindow, index + pivotWindow + 1).filter((_, neighborIndex) => neighborIndex !== pivotWindow);
-    const isLocalHigh = neighbors.every((neighbor) => current.high >= neighbor.high);
-    const isLocalLow = neighbors.every((neighbor) => current.low <= neighbor.low);
-
-    if (isLocalHigh) {
-      pivotCandidates.push({ price: current.high, type: "resistance", count: 1 });
-    }
-
-    if (isLocalLow) {
-      pivotCandidates.push({ price: current.low, type: "support", count: 1 });
-    }
+  const maxVolume = Math.max(...bins.map((bin) => bin.volume));
+  if (maxVolume <= 0) {
+    return [];
   }
 
-  const pivotClusters = pivotCandidates.reduce<Array<{ price: number; type: "support" | "resistance"; count: number }>>((clusters, pivot) => {
-    const existing = clusters.find((cluster) => cluster.type === pivot.type && Math.abs(cluster.price - pivot.price) <= mergeDistance);
-    if (!existing) {
-      clusters.push({ ...pivot });
-      return clusters;
-    }
+  return bins
+    .filter((bin) => bin.volume / maxVolume >= 0.55)
+    .map((bin) => {
+      const price = (bin.low + bin.high) / 2;
+      const volumeScore = Math.round((bin.volume / maxVolume) * 30);
 
-    existing.price = (existing.price * existing.count + pivot.price) / (existing.count + 1);
-    existing.count += 1;
-    return clusters;
-  }, []);
-
-  const fibonacciLevels = [0.236, 0.382, 0.5, 0.618, 0.786].map((ratio) => high - range * ratio);
-  const candidates = new Map<string, SupportResistanceLevel>();
-
-  function addCandidate(price: number, type: "support" | "resistance", confidence: number, reason: string) {
-    if (!Number.isFinite(price) || price <= 0) return;
-    if (type === "support" && price >= currentPrice) return;
-    if (type === "resistance" && price <= currentPrice) return;
-
-    const key = `${type}:${Math.round(price / mergeDistance)}`;
-    const existing = candidates.get(key);
-
-    if (!existing) {
-      candidates.set(key, {
+      return {
         price,
-        type,
-        confidence: Math.max(0, Math.min(100, confidence)),
-        reason,
-      });
-      return;
+        type: price < currentPrice ? "support" : "resistance",
+        confidence: 50 + volumeScore,
+        reason: "거래량 집중 구간",
+      };
+    });
+}
+
+function getMovingAverageCandidates(prices: PricePoint[], currentPrice: number): SupportResistanceLevel[] {
+  const closes = prices.map((price) => price.close);
+  const periods = [20, 60, 120, 200];
+  const candidates: SupportResistanceLevel[] = [];
+
+  const sma = (period: number) => {
+    if (closes.length < period) {
+      return null;
     }
 
-    existing.price = (existing.price + price) / 2;
-    existing.confidence = Math.max(existing.confidence, confidence) + 8;
-    existing.reason = Array.from(new Set([...existing.reason.split(" + "), reason])).join(" + ");
-  }
+    const slice = closes.slice(-period);
+    return slice.reduce((sum, value) => sum + value, 0) / period;
+  };
 
-  for (const bin of volumeBins) {
-    const volumeRatio = bin.volume / maxVolume;
-    if (volumeRatio < 0.45) continue;
-
-    addCandidate(
-      bin.price,
-      bin.price < currentPrice ? "support" : "resistance",
-      45 + volumeRatio * 35,
-      "거래량 집중 구간",
-    );
-  }
-
-  for (const pivot of pivotClusters) {
-    addCandidate(
-      pivot.price,
-      pivot.type,
-      Math.min(72, 36 + pivot.count * 12),
-      pivot.type === "support" ? "과거 저점 반복" : "과거 고점 반복",
-    );
-  }
-
-  for (const level of candidates.values()) {
-    const hasPivotOverlap = pivotClusters.some((pivot) => pivot.type === level.type && Math.abs(pivot.price - level.price) <= proximity);
-    const hasFibonacciOverlap = fibonacciLevels.some((fibPrice) => Math.abs(fibPrice - level.price) <= proximity);
-
-    if (hasPivotOverlap && level.reason.includes("거래량 집중 구간")) {
-      level.confidence += 16;
-      level.reason = "거래량 + 피벗 중첩";
+  for (const period of periods) {
+    const value = sma(period);
+    if (!value) {
+      continue;
     }
 
-    if (hasFibonacciOverlap) {
-      level.confidence += 6;
-      if (!level.reason.includes("피보나치")) {
-        level.reason = `${level.reason} + 피보나치 보조 구간`;
-      }
-    }
-
-    const distancePenalty = Math.min(14, (Math.abs(level.price - currentPrice) / currentPrice) * 25);
-    level.confidence = Math.round(Math.max(0, Math.min(100, level.confidence - distancePenalty)));
+    candidates.push({
+      price: value,
+      type: value < currentPrice ? "support" : "resistance",
+      confidence: period === 20 ? 58 : period === 60 ? 62 : 65,
+      reason: `${period}일 이동평균선`,
+    });
   }
 
-  function rankLevels(type: "support" | "resistance") {
-    return Array.from(candidates.values())
-      .filter((level) => level.type === type)
-      .sort((a, b) => b.confidence - a.confidence || Math.abs(a.price - currentPrice) - Math.abs(b.price - currentPrice))
-      .slice(0, 5);
+  return candidates;
+}
+
+function getFibonacciCandidates(prices: PricePoint[], currentPrice: number): SupportResistanceLevel[] {
+  const recent = prices.slice(-180);
+  if (recent.length < 60) {
+    return [];
   }
 
-  const supports = rankLevels("support");
-  const resistances = rankLevels("resistance");
+  const high = Math.max(...recent.map((price) => price.high));
+  const low = Math.min(...recent.map((price) => price.low));
+
+  if (low <= 0 || high <= low) {
+    return [];
+  }
+
+  const range = high - low;
+  const levels = [0.236, 0.382, 0.5, 0.618, 0.786];
+
+  return levels.map((ratio) => {
+    const price = high - range * ratio;
+
+    return {
+      price,
+      type: price < currentPrice ? "support" : "resistance",
+      confidence: 42,
+      reason: `피보나치 ${(ratio * 100).toFixed(1)}%`,
+    };
+  });
+}
+
+export function calculateSupportResistance(prices: PricePoint[], currentPrice: number): SupportResistance {
+  if (!prices || prices.length < 30) {
+    return { supports: [], resistances: [] };
+  }
+
+  const sorted = [...prices]
+    .filter(
+      (price) =>
+        price.open > 0 &&
+        price.high > 0 &&
+        price.low > 0 &&
+        price.close > 0 &&
+        price.high >= price.low &&
+        price.high >= price.close &&
+        price.high >= price.open &&
+        price.low <= price.close &&
+        price.low <= price.open,
+    )
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  if (sorted.length < 30) {
+    return { supports: [], resistances: [] };
+  }
+
+  const lastClose = sorted[sorted.length - 1].close;
+  const price = currentPrice && currentPrice > 0 ? currentPrice : lastClose;
+  const candidatePool = [
+    ...getPivotCandidates(sorted, price),
+    ...getVolumeProfileCandidates(sorted, price),
+    ...getMovingAverageCandidates(sorted, price),
+    ...getFibonacciCandidates(sorted, price),
+  ];
+  const maxDistancePct = 0.25;
+  const minConfidence = 55;
+  const filtered = candidatePool.filter((level) => {
+    const distance = percentDistance(level.price, price);
+
+    if (distance > maxDistancePct) return false;
+    if (level.price <= 0) return false;
+    if (level.type === "support" && level.price >= price) return false;
+    if (level.type === "resistance" && level.price <= price) return false;
+
+    return true;
+  });
+
+  const supports = clusterPrices(
+    filtered.filter((level) => level.type === "support"),
+    price,
+  )
+    .filter((level) => level.confidence >= minConfidence)
+    .sort((a, b) => Math.abs(a.price - price) - Math.abs(b.price - price))
+    .slice(0, 5);
+
+  const resistances = clusterPrices(
+    filtered.filter((level) => level.type === "resistance"),
+    price,
+  )
+    .filter((level) => level.confidence >= minConfidence)
+    .sort((a, b) => Math.abs(a.price - price) - Math.abs(b.price - price))
+    .slice(0, 5);
 
   return {
     supports,
