@@ -1,17 +1,16 @@
-import type { StockBasicInfo, StockIndicators, SupportResistanceLevel } from "@/lib/market/types";
+import type { RecentPricePoint, StockBasicInfo, StockIndicators, SupportResistanceLevel } from "@/lib/market/types";
+import {
+  formatPercent as formatDisplayPercent,
+  formatPrice as formatDisplayPrice,
+  getPercentColorClass,
+} from "@/lib/formatters";
 
 function formatValue(value: number | null, currency: StockBasicInfo["currency"]) {
-  if (value === null) {
-    return "데이터 없음";
-  }
-
-  return currency === "KRW"
-    ? value.toLocaleString("ko-KR", { maximumFractionDigits: 0 })
-    : value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatDisplayPrice(value, currency);
 }
 
 function formatPercent(value: number) {
-  return `${value.toFixed(1)}%`;
+  return formatDisplayPercent(value);
 }
 
 function getDistancePercent(price: number | null, currentPrice: number) {
@@ -63,16 +62,12 @@ function MovingAverageRow({
   }
 
   const percent = ((currentPrice - value) / value) * 100;
-  const isSame = Math.abs(percent) < 0.005;
-  const positive = percent > 0;
-  const relationClass = isSame ? "text-muted" : positive ? "text-positive" : "text-negative";
-  const relationText = isSame ? "— 0.00%" : `${positive ? "▲ +" : "▼ -"}${Math.abs(percent).toFixed(2)}%`;
 
   return (
     <div title={tooltip} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5 hover:bg-panel/50">
       <span className="font-extrabold text-muted">{label}</span>
       <span className="text-ink">{formatValue(value, currency)}</span>
-      <span className={`font-extrabold ${relationClass}`}>{relationText}</span>
+      <span className={`font-extrabold ${getPercentColorClass(percent)}`}>{formatDisplayPercent(percent)}</span>
     </div>
   );
 }
@@ -115,10 +110,10 @@ function LevelList({
   );
 }
 
-function getRating(score: number) {
-  if (score >= 95) return { stars: "★★★★★", label: "매우 긍정" };
-  if (score >= 90) return { stars: "★★★★☆", label: "긍정" };
-  if (score >= 80) return { stars: "★★★★", label: "긍정" };
+function getRating(score: number, hasCaution: boolean) {
+  if (score >= 95) return { stars: "★★★★★", label: hasCaution ? "긍정 / 과열 주의" : "긍정 우위" };
+  if (score >= 90) return { stars: "★★★★☆", label: hasCaution ? "긍정 / 주의" : "긍정" };
+  if (score >= 80) return { stars: "★★★★", label: hasCaution ? "다소 긍정 / 주의" : "긍정" };
   if (score >= 70) return { stars: "★★★☆", label: "다소 긍정" };
   if (score >= 60) return { stars: "★★★", label: "중립 우위" };
   if (score >= 50) return { stars: "★★☆", label: "중립" };
@@ -132,12 +127,14 @@ function getRiskLevel({
   resistanceDistancePercent,
   volatilityPercent,
   score,
+  forceAtLeastModerate,
 }: {
   rsi: number;
   supportDistancePercent: number | null;
   resistanceDistancePercent: number | null;
   volatilityPercent: number;
   score: number;
+  forceAtLeastModerate: boolean;
 }) {
   let riskScore = 0;
 
@@ -154,6 +151,7 @@ function getRiskLevel({
 
   if (score < 40) riskScore += 2;
   else if (score < 60) riskScore += 1;
+  if (forceAtLeastModerate) riskScore = Math.max(riskScore, 2);
 
   if (riskScore >= 6) return { label: "매우 높음", icon: "🔴", className: "text-negative" };
   if (riskScore >= 4) return { label: "높음", icon: "🟠", className: "text-orange-300" };
@@ -169,14 +167,15 @@ function buildAiOpinion({
   indicators,
   currentPrice,
   currency,
+  recentPrices,
 }: {
   indicators: StockIndicators;
   currentPrice: number;
   currency: StockBasicInfo["currency"];
+  recentPrices: RecentPricePoint[];
 }) {
   const ma = indicators.movingAverages;
   const score = indicators.compositeSignal.score;
-  const rating = getRating(score);
   const nearestSupport = indicators.supportResistance.supports[0] ?? null;
   const nearestResistance = indicators.supportResistance.resistances[0] ?? null;
   const supportDistancePercent = getDistancePercent(nearestSupport?.price ?? null, currentPrice);
@@ -187,13 +186,6 @@ function buildAiOpinion({
     indicators.bollingerBands.middle > 0
       ? ((indicators.bollingerBands.upper - indicators.bollingerBands.lower) / indicators.bollingerBands.middle) * 100
       : 0;
-  const risk = getRiskLevel({
-    rsi: indicators.rsi,
-    supportDistancePercent,
-    resistanceDistancePercent,
-    volatilityPercent: bollingerWidthPercent,
-    score,
-  });
   const aboveShort = ma.sma20 !== null && currentPrice > ma.sma20;
   const aboveLong = ma.sma200 !== null && currentPrice > ma.sma200;
   const aboveCoreTrend =
@@ -208,7 +200,32 @@ function buildAiOpinion({
   const nearHigh = week52Position >= 0.85;
   const nearLow = week52Position <= 0.15;
   const macdStatus = indicators.macd?.status ?? "중립";
+  const noResistance = nearestResistance === null;
+  const chronologicalRecent = [...recentPrices].reverse();
+  const firstRecentClose = chronologicalRecent[0]?.close ?? currentPrice;
+  const lastRecentClose = chronologicalRecent.at(-1)?.close ?? currentPrice;
+  const recentTenReturn = firstRecentClose > 0 ? ((lastRecentClose - firstRecentClose) / firstRecentClose) * 100 : 0;
+  const rsiCaution = indicators.rsi >= 70;
+  const highCaution = nearHigh;
+  const noResistanceCaution = noResistance && nearHigh;
+  const shortRunCaution = recentTenReturn >= 12 || currentPrice > indicators.bollingerBands.upper;
+  const hasCaution = rsiCaution || highCaution || noResistanceCaution || shortRunCaution;
+  const rating = getRating(score, hasCaution);
+  const risk = getRiskLevel({
+    rsi: indicators.rsi,
+    supportDistancePercent,
+    resistanceDistancePercent,
+    volatilityPercent: bollingerWidthPercent,
+    score,
+    forceAtLeastModerate: score >= 90 && (rsiCaution || highCaution || noResistance),
+  });
   const seed = score + Math.round(indicators.rsi) + Math.round(currentPrice);
+  const cautionText =
+    (highCaution && "52주 고점권에 가까워 높은 점수와 별개로 단기 추격매수는 신중할 필요가 있습니다.") ||
+    (noResistanceCaution && "의미 있는 저항선이 없어 상승 여력은 열려 있지만 변동성 확대 가능성도 함께 봐야 합니다.") ||
+    (shortRunCaution && "최근 단기 상승폭이 커진 구간이라 신규 진입은 분할 접근이 더 적합합니다.") ||
+    (rsiCaution && "RSI가 과열권에 가까워 단기 숨 고르기 가능성을 염두에 둘 필요가 있습니다.") ||
+    null;
   const summary = chooseTemplate(
     [
       aboveCoreTrend && nearHigh
@@ -240,40 +257,29 @@ function buildAiOpinion({
     resistanceDistancePercent,
     nearestSupport,
     nearestResistance,
-    paragraphs: {
-      trend: aboveCoreTrend
-        ? "현재가는 60일, 120일, 200일선 위에서 거래되고 있어 중장기 추세는 긍정적으로 해석됩니다."
+    sentences: [
+      aboveCoreTrend
+        ? "현재가는 60일, 120일, 200일선 위에 있어 중장기 흐름은 우호적입니다."
         : aboveShort && aboveLong
-          ? "현재가는 20일선과 200일선 위에 있어 단기와 장기 흐름이 모두 나쁘지 않습니다."
+          ? "현재가는 20일선과 200일선 위에 있어 흐름은 아직 무너지지 않았습니다."
           : belowAll
-            ? "현재가는 주요 이동평균선 대부분을 밑돌고 있어 아직 추세 회복은 확인되지 않았습니다."
-            : "이동평균선 기준으로는 상승과 조정 신호가 섞여 있어 중립적인 흐름에 가깝습니다.",
-      rsi:
-        indicators.rsi >= 70
-          ? `RSI는 ${indicators.rsi.toFixed(0)}로 과열권에 가까워 단기 변동성 확대에 유의해야 합니다.`
-          : indicators.rsi <= 30
-            ? `RSI는 ${indicators.rsi.toFixed(0)}로 과매도권에 가까워 기술적 반등 가능성은 있지만 확인이 필요합니다.`
-            : `RSI는 ${indicators.rsi.toFixed(0)}로 과열 구간은 아니며, 수급 부담은 비교적 제한적입니다.`,
-      macd:
-        macdStatus === "상승 신호"
-          ? "MACD는 상승 신호를 유지하고 있어 추세 모멘텀이 아직 살아 있습니다."
-          : macdStatus === "하락 신호"
-            ? "MACD는 하락 신호를 보이고 있어 단기 모멘텀은 약해진 상태입니다."
-            : "MACD는 중립에 가까워 강한 방향성보다는 확인 구간으로 보는 편이 좋습니다.",
-      support:
-        nearestSupport && supportDistancePercent !== null
-          ? `가장 가까운 지지선은 ${formatValue(nearestSupport.price, currency)}이며 현재가와 약 ${formatPercent(supportDistancePercent)} 차이가 있습니다.`
-          : "현재 가격 근처에서 신뢰도 높은 지지선은 뚜렷하지 않습니다.",
-      resistance:
-        nearestResistance && resistanceDistancePercent !== null
-          ? `가장 가까운 저항선은 ${formatValue(nearestResistance.price, currency)}이며 현재가와 약 ${formatPercent(resistanceDistancePercent)} 차이가 있습니다.`
-          : "의미 있는 저항선은 제한적이며, 신고가 돌파 구간일 가능성이 있습니다.",
-      position: nearHigh
-        ? "현재는 52주 고점 부근에서 거래되고 있으므로 단기 추격매수는 다소 신중할 필요가 있습니다."
-        : nearLow
-          ? "현재는 52주 저점권에 가까워 반등 여지는 있지만 추세 확인이 우선입니다."
-          : "52주 범위 기준으로는 중간 구간에 있어 방향성 확인이 중요합니다.",
-    },
+            ? "현재가는 주요 이동평균선 아래에 있어 반등 확인 전까지 보수적인 접근이 필요합니다."
+            : "이동평균선 기준으로는 상승과 조정 신호가 섞인 중립 구간입니다.",
+      macdStatus === "상승 신호" && indicators.rsi < 70
+        ? `RSI는 ${indicators.rsi.toFixed(0)}로 과열권은 아니며, MACD도 상승 신호를 유지하고 있습니다.`
+        : macdStatus === "하락 신호"
+          ? `RSI는 ${indicators.rsi.toFixed(0)}이고 MACD는 하락 신호라 단기 모멘텀은 약합니다.`
+          : `RSI는 ${indicators.rsi.toFixed(0)}이며 MACD는 중립에 가까워 방향성 확인이 필요합니다.`,
+      nearestSupport && supportDistancePercent !== null
+        ? `가장 가까운 지지선은 ${formatValue(nearestSupport.price, currency)}로 현재가와 약 ${formatPercent(supportDistancePercent)} 차이입니다.`
+        : "가까운 지지선이 뚜렷하지 않아 손절 기준을 보수적으로 잡을 필요가 있습니다.",
+      cautionText ??
+        (nearestResistance && resistanceDistancePercent !== null
+          ? `가장 가까운 저항선은 현재가와 약 ${formatPercent(resistanceDistancePercent)} 떨어져 있습니다.`
+          : nearLow
+            ? "52주 저점권에 가까워 반등 여지는 있지만 추세 회복 확인이 우선입니다."
+            : "현재는 지표 확인과 분할 접근이 더 적합한 구간입니다."),
+    ],
   };
 }
 
@@ -281,12 +287,14 @@ function AiOpinionCard({
   indicators,
   currentPrice,
   currency,
+  recentPrices,
 }: {
   indicators: StockIndicators;
   currentPrice: number;
   currency: StockBasicInfo["currency"];
+  recentPrices: RecentPricePoint[];
 }) {
-  const opinion = buildAiOpinion({ indicators, currentPrice, currency });
+  const opinion = buildAiOpinion({ indicators, currentPrice, currency, recentPrices });
 
   return (
     <Card title="🤖 AI 종합 의견" className="sm:col-span-2 xl:col-span-2">
@@ -295,20 +303,9 @@ function AiOpinionCard({
           {opinion.summary}
         </p>
         <div className="space-y-3 text-sm leading-7 text-ink">
-          <p>
-            <span className="font-black text-positive">{indicators.compositeSignal.longTermTrend}</span>{" "}
-            관점에서 보면 {opinion.paragraphs.trend}
-          </p>
-          <p>
-            {opinion.paragraphs.rsi}{" "}
-            <span className={indicators.macd ? getMacdStatusClass(indicators.macd.status) : "text-muted"}>
-              {opinion.paragraphs.macd}
-            </span>
-          </p>
-          <p>
-            {opinion.paragraphs.support} {opinion.paragraphs.resistance}
-          </p>
-          <p>{opinion.paragraphs.position}</p>
+          {opinion.sentences.map((sentence) => (
+            <p key={sentence}>{sentence}</p>
+          ))}
         </div>
         <div className="rounded-lg border border-line/70 bg-panel/60 p-3">
           <p className="text-xs font-extrabold text-muted">AI 종합 판단</p>
@@ -330,10 +327,12 @@ export default function AnalysisCards({
   indicators,
   currency,
   currentPrice,
+  recentPrices,
 }: {
   indicators: StockIndicators;
   currency: StockBasicInfo["currency"];
   currentPrice: number;
+  recentPrices: RecentPricePoint[];
 }) {
   const ma = indicators.movingAverages;
 
@@ -378,9 +377,9 @@ export default function AnalysisCards({
                   <p className={`font-extrabold ${getMacdStatusClass(indicators.macd.status)}`}>
                     {indicators.macd.status}
                   </p>
-                  <p>MACD: {indicators.macd.macd.toFixed(2)}</p>
-                  <p>Signal: {indicators.macd.signal.toFixed(2)}</p>
-                  <p>Hist: {indicators.macd.histogram.toFixed(2)}</p>
+                  <p>MACD: {formatValue(indicators.macd.macd, currency)}</p>
+                  <p>Signal: {formatValue(indicators.macd.signal, currency)}</p>
+                  <p>Hist: {formatValue(indicators.macd.histogram, currency)}</p>
                 </>
               ) : (
                 <p>MACD: 데이터 없음</p>
@@ -397,7 +396,7 @@ export default function AnalysisCards({
               <LevelList levels={indicators.supportResistance.resistances} currency={currency} />
             )}
           </Card>
-          <AiOpinionCard indicators={indicators} currentPrice={currentPrice} currency={currency} />
+          <AiOpinionCard indicators={indicators} currentPrice={currentPrice} currency={currency} recentPrices={recentPrices} />
         </div>
       )}
     </section>

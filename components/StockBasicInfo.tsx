@@ -1,18 +1,7 @@
 import type { PriceFlashDirection } from "@/hooks/useLiveQuote";
+import { formatPercent, formatPrice, getPercentColorClass } from "@/lib/formatters";
 import type { StockBasicInfo as StockBasicInfoType } from "@/lib/market/types";
 import LivePriceBadge from "./LivePriceBadge";
-
-function formatMoney(value: number, currency: StockBasicInfoType["currency"]) {
-  if (!Number.isFinite(value) || value <= 0) {
-    return "데이터 없음";
-  }
-
-  if (currency === "KRW") {
-    return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 0 })}원`;
-  }
-
-  return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function getMarketStateLabel(marketState: StockBasicInfoType["marketState"]) {
   if (marketState === "PRE") {
@@ -43,7 +32,6 @@ export default function StockBasicInfo({
     refreshError: string;
   };
 }) {
-  const positive = basic.changePercent >= 0;
   const flashClass =
     flashDirection === "up"
       ? "animate-price-flash-up"
@@ -75,13 +63,15 @@ export default function StockBasicInfo({
               flashClass,
             ].join(" ")}
           >
-            {formatMoney(basic.currentPrice, basic.currency)}
+            {basic.currency === "USD" ? "$" : ""}
+            {formatPrice(basic.currentPrice, basic.currency)}
+            {basic.currency === "KRW" ? "원" : ""}
           </p>
           <span className="ml-2 inline-flex rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-extrabold text-muted">
             {getMarketStateLabel(basic.marketState)}
           </span>
-          <p className={`text-sm font-extrabold ${positive ? "text-positive" : "text-negative"}`}>
-            전일 대비: {positive ? "▲" : "▼"} {Math.abs(basic.changePercent).toFixed(2)}%
+          <p className={`text-sm font-extrabold ${getPercentColorClass(basic.changePercent)}`}>
+            전일 대비: {formatPercent(basic.changePercent)}
           </p>
           {liveStatus && (
             <LivePriceBadge

@@ -150,6 +150,7 @@ export default function Home() {
                 indicators={stock.indicators}
                 currency={stock.basic.currency}
                 currentPrice={stock.basic.currentPrice}
+                recentPrices={stock.recentPrices}
               />
               <section className="border-t border-line pt-5">
                 <h2 className="mb-4 text-lg font-extrabold">주의사항 및 태그</h2>
