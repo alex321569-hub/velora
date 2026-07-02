@@ -116,6 +116,18 @@ input {
   }
 }
 
+@keyframes ai-fade {
+  from {
+    opacity: 0.45;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-price-flash-up {
   animation: price-flash-up 800ms ease-out both;
 }
@@ -126,4 +138,8 @@ input {
 
 .animate-live-dot {
   animation: live-dot 800ms ease-out both;
+}
+
+.animate-ai-fade {
+  animation: ai-fade 300ms ease-out both;
 }

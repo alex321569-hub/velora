@@ -147,6 +147,7 @@ export default function Home() {
               />
               <RecentPriceList prices={stock.recentPrices} currency={stock.basic.currency} />
               <AnalysisCards
+                symbol={stock.basic.symbol}
                 indicators={stock.indicators}
                 currency={stock.basic.currency}
                 currentPrice={stock.basic.currentPrice}
