@@ -160,12 +160,13 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
         week52High: 0,
         week52Low: 0,
         bollingerBands: { upper: 0, middle: 0, lower: 0 },
-        movingAverages: { sma5: null, sma20: null, sma60: null, sma120: null, sma365: null },
+        movingAverages: { sma5: null, sma20: null, sma60: null, sma120: null, sma200: null },
         rsi: 0,
         rsiStatus: "보통",
         supportResistance: { supports: [], resistances: [] },
         compositeSignal: {
           trendStatus: "횡보",
+          longTermTrend: "중립",
           pricePosition: "중간 구간",
           rsiStatus: "보통",
           nearestSupportDistance: null,
@@ -192,7 +193,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
     sma20: calculateSMA(closes, 20),
     sma60: calculateSMA(closes, 60),
     sma120: calculateSMA(closes, 120),
-    sma365: calculateSMA(closes, 365),
+    sma200: calculateSMA(closes, 200),
   };
   const rsi = calculateRSI(closes);
   const supportResistance = calculateSupportResistance(sortedPrices, currentPrice);
@@ -218,12 +219,49 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
       : movingAverages.sma20 !== null && movingAverages.sma60 !== null && currentPrice < movingAverages.sma20 && movingAverages.sma20 < movingAverages.sma60
         ? "하락 추세"
         : "횡보";
+  const availableMovingAverages = [
+    movingAverages.sma5,
+    movingAverages.sma20,
+    movingAverages.sma60,
+    movingAverages.sma120,
+    movingAverages.sma200,
+  ].filter((value): value is number => value !== null);
+  const isAboveAllMovingAverages =
+    availableMovingAverages.length === 5 && availableMovingAverages.every((value) => currentPrice > value);
+  const isBelowAllMovingAverages =
+    availableMovingAverages.length === 5 && availableMovingAverages.every((value) => currentPrice < value);
+  const isAboveLongTermAverages =
+    movingAverages.sma60 !== null &&
+    movingAverages.sma120 !== null &&
+    movingAverages.sma200 !== null &&
+    currentPrice > movingAverages.sma60 &&
+    currentPrice > movingAverages.sma120 &&
+    currentPrice > movingAverages.sma200;
+  const isBelowLongTermAverages =
+    movingAverages.sma60 !== null &&
+    movingAverages.sma120 !== null &&
+    movingAverages.sma200 !== null &&
+    currentPrice < movingAverages.sma60 &&
+    currentPrice < movingAverages.sma120 &&
+    currentPrice < movingAverages.sma200;
+  const longTermTrend = isAboveAllMovingAverages
+    ? "강한 상승"
+    : isAboveLongTermAverages
+      ? "상승"
+      : isBelowAllMovingAverages
+        ? "강한 하락"
+        : isBelowLongTermAverages
+          ? "하락"
+          : "중립";
   const pricePosition =
     rangePosition >= 0.85 ? "52주 고점 근처" : rangePosition <= 0.15 ? "52주 저점 근처" : "중간 구간";
   let compositeScore = 0;
   compositeScore += movingAverages.sma20 !== null && currentPrice > movingAverages.sma20 ? 10 : 0;
   compositeScore += movingAverages.sma60 !== null && currentPrice > movingAverages.sma60 ? 10 : 0;
-  compositeScore += movingAverages.sma120 !== null && currentPrice > movingAverages.sma120 ? 10 : 0;
+  compositeScore += movingAverages.sma120 !== null && currentPrice > movingAverages.sma120 ? 5 : 0;
+  compositeScore += movingAverages.sma120 !== null && currentPrice < movingAverages.sma120 ? -5 : 0;
+  compositeScore += movingAverages.sma200 !== null && currentPrice > movingAverages.sma200 ? 10 : 0;
+  compositeScore += movingAverages.sma200 !== null && currentPrice < movingAverages.sma200 ? -10 : 0;
   compositeScore += movingAverages.sma20 !== null && movingAverages.sma60 !== null && movingAverages.sma20 > movingAverages.sma60 ? 10 : 0;
   compositeScore += movingAverages.sma60 !== null && movingAverages.sma120 !== null && movingAverages.sma60 > movingAverages.sma120 ? 10 : 0;
   compositeScore += rsi >= 45 && rsi <= 65 ? 15 : 0;
@@ -257,6 +295,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
       supportResistance,
       compositeSignal: {
         trendStatus,
+        longTermTrend,
         pricePosition,
         rsiStatus: getRsiStatus(rsi),
         nearestSupportDistance: nearestSupport.distance,

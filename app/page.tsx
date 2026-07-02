@@ -146,7 +146,11 @@ export default function Home() {
                 }}
               />
               <RecentPriceList prices={stock.recentPrices} currency={stock.basic.currency} />
-              <AnalysisCards indicators={stock.indicators} currency={stock.basic.currency} />
+              <AnalysisCards
+                indicators={stock.indicators}
+                currency={stock.basic.currency}
+                currentPrice={stock.basic.currentPrice}
+              />
               <section className="border-t border-line pt-5">
                 <h2 className="mb-4 text-lg font-extrabold">주의사항 및 태그</h2>
                 <div className="space-y-2">

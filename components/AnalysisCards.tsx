@@ -27,6 +27,56 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
+function MovingAverageRow({
+  label,
+  tooltip,
+  value,
+  currentPrice,
+  currency,
+}: {
+  label: string;
+  tooltip: string;
+  value: number | null;
+  currentPrice: number;
+  currency: StockBasicInfo["currency"];
+}) {
+  if (value === null) {
+    return (
+      <div title={tooltip} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5">
+        <span className="font-extrabold text-muted">{label}</span>
+        <span className="text-ink">데이터 없음</span>
+        <span className="text-muted">-</span>
+      </div>
+    );
+  }
+
+  const percent = ((currentPrice - value) / value) * 100;
+  const isSame = Math.abs(percent) < 0.005;
+  const positive = percent > 0;
+  const relationClass = isSame ? "text-muted" : positive ? "text-positive" : "text-negative";
+  const relationText = isSame ? "— 0.00%" : `${positive ? "▲ +" : "▼ -"}${Math.abs(percent).toFixed(2)}%`;
+
+  return (
+    <div title={tooltip} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5 hover:bg-panel/50">
+      <span className="font-extrabold text-muted">{label}</span>
+      <span className="text-ink">{formatValue(value, currency)}</span>
+      <span className={`font-extrabold ${relationClass}`}>{relationText}</span>
+    </div>
+  );
+}
+
+function getLongTermTrendDisplay(trend: StockIndicators["compositeSignal"]["longTermTrend"]) {
+  if (trend === "강한 상승" || trend === "상승") {
+    return `🟢 ${trend}`;
+  }
+
+  if (trend === "강한 하락" || trend === "하락") {
+    return `🔴 ${trend}`;
+  }
+
+  return `🟡 ${trend}`;
+}
+
 function LevelList({
   levels,
   currency,
@@ -56,9 +106,11 @@ function LevelList({
 export default function AnalysisCards({
   indicators,
   currency,
+  currentPrice,
 }: {
   indicators: StockIndicators;
   currency: StockBasicInfo["currency"];
+  currentPrice: number;
 }) {
   const ma = indicators.movingAverages;
 
@@ -81,11 +133,13 @@ export default function AnalysisCards({
             <p>하단: {formatValue(indicators.bollingerBands.lower, currency)}</p>
           </Card>
           <Card title="이동평균선">
-            <p>5일: {formatValue(ma.sma5, currency)}</p>
-            <p>20일: {formatValue(ma.sma20, currency)}</p>
-            <p>60일: {formatValue(ma.sma60, currency)}</p>
-            <p>120일: {formatValue(ma.sma120, currency)}</p>
-            <p>365일: {formatValue(ma.sma365, currency)}</p>
+            <div className="space-y-1">
+              <MovingAverageRow label="5일" tooltip="단기 추세" value={ma.sma5} currentPrice={currentPrice} currency={currency} />
+              <MovingAverageRow label="20일" tooltip="한 달 추세" value={ma.sma20} currentPrice={currentPrice} currency={currency} />
+              <MovingAverageRow label="60일" tooltip="분기 추세" value={ma.sma60} currentPrice={currentPrice} currency={currency} />
+              <MovingAverageRow label="120일" tooltip="중기 추세" value={ma.sma120} currentPrice={currentPrice} currency={currency} />
+              <MovingAverageRow label="200일" tooltip="장기 추세" value={ma.sma200} currentPrice={currentPrice} currency={currency} />
+            </div>
           </Card>
           <Card title="RSI">
             <p>
@@ -104,6 +158,7 @@ export default function AnalysisCards({
           </Card>
           <Card title="종합 신호">
             <p>추세 상태: {indicators.compositeSignal.trendStatus}</p>
+            <p>장기 추세: {getLongTermTrendDisplay(indicators.compositeSignal.longTermTrend)}</p>
             <p>현재 위치: {indicators.compositeSignal.pricePosition}</p>
             <p>RSI 상태: {indicators.compositeSignal.rsiStatus}</p>
             <p>

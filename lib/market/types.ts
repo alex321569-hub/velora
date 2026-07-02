@@ -104,7 +104,7 @@ export interface MovingAverages {
   sma20: number | null;
   sma60: number | null;
   sma120: number | null;
-  sma365: number | null;
+  sma200: number | null;
 }
 
 export interface SupportResistanceLevel {
@@ -131,6 +131,7 @@ export type PricePosition = "52주 고점 근처" | "중간 구간" | "52주 저
 
 export interface CompositeSignal {
   trendStatus: TrendStatus;
+  longTermTrend: "강한 상승" | "상승" | "중립" | "하락" | "강한 하락";
   pricePosition: PricePosition;
   rsiStatus: RsiStatus;
   nearestSupportDistance: number | null;
