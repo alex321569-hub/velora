@@ -1,6 +1,7 @@
 import type {
   BollingerBands,
   HistoricalPriceValidationResult,
+  MacdIndicator,
   PricePoint,
   RsiStatus,
   SupportResistance,
@@ -51,6 +52,70 @@ export function calculateRSI(values: number[], period = 14): number {
 
   const relativeStrength = averageGain / averageLoss;
   return 100 - 100 / (1 + relativeStrength);
+}
+
+function calculateEMA(values: number[], period: number): Array<number | null> {
+  if (values.length < period || period <= 0) {
+    return values.map(() => null);
+  }
+
+  const multiplier = 2 / (period + 1);
+  const emaValues: Array<number | null> = values.map(() => null);
+  let ema = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  emaValues[period - 1] = ema;
+
+  for (let index = period; index < values.length; index += 1) {
+    ema = (values[index] - ema) * multiplier + ema;
+    emaValues[index] = ema;
+  }
+
+  return emaValues;
+}
+
+export function calculateMACD(values: number[]): MacdIndicator | null {
+  const fastPeriod = 12;
+  const slowPeriod = 26;
+  const signalPeriod = 9;
+
+  if (values.length < slowPeriod + signalPeriod) {
+    return null;
+  }
+
+  const ema12 = calculateEMA(values, fastPeriod);
+  const ema26 = calculateEMA(values, slowPeriod);
+  const macdSeries = values.map((_, index) => {
+    const fast = ema12[index];
+    const slow = ema26[index];
+    return fast === null || slow === null ? null : fast - slow;
+  });
+  const validMacdValues = macdSeries.filter((value): value is number => value !== null);
+
+  if (validMacdValues.length < signalPeriod) {
+    return null;
+  }
+
+  const signalSeries = calculateEMA(validMacdValues, signalPeriod);
+  const macd = validMacdValues.at(-1);
+  const signal = signalSeries.at(-1);
+
+  if (macd === undefined || signal === undefined || signal === null) {
+    return null;
+  }
+
+  const histogram = macd - signal;
+  const status =
+    macd > signal && histogram > 0
+      ? "상승 신호"
+      : macd < signal && histogram < 0
+        ? "하락 신호"
+        : "중립";
+
+  return {
+    macd,
+    signal,
+    histogram,
+    status,
+  };
 }
 
 export function getRsiStatus(rsi: number): RsiStatus {

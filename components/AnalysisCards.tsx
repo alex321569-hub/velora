@@ -77,6 +77,18 @@ function getLongTermTrendDisplay(trend: StockIndicators["compositeSignal"]["long
   return `🟡 ${trend}`;
 }
 
+function getMacdStatusClass(status: NonNullable<StockIndicators["macd"]>["status"]) {
+  if (status === "상승 신호") {
+    return "text-positive";
+  }
+
+  if (status === "하락 신호") {
+    return "text-negative";
+  }
+
+  return "text-muted";
+}
+
 function LevelList({
   levels,
   currency,
@@ -141,10 +153,28 @@ export default function AnalysisCards({
               <MovingAverageRow label="200일" tooltip="장기 추세" value={ma.sma200} currentPrice={currentPrice} currency={currency} />
             </div>
           </Card>
-          <Card title="RSI">
-            <p>
-              [{indicators.rsiStatus}] {indicators.rsi.toFixed(2)}
-            </p>
+          <Card title="RSI / MACD">
+            <div>
+              <p className="text-xs font-extrabold text-muted">RSI</p>
+              <p>
+                [{indicators.rsiStatus}] {indicators.rsi.toFixed(2)}
+              </p>
+            </div>
+            <div className="pt-3">
+              <p className="text-xs font-extrabold text-muted">MACD</p>
+              {indicators.macd ? (
+                <>
+                  <p className={`font-extrabold ${getMacdStatusClass(indicators.macd.status)}`}>
+                    {indicators.macd.status}
+                  </p>
+                  <p>MACD: {indicators.macd.macd.toFixed(2)}</p>
+                  <p>Signal: {indicators.macd.signal.toFixed(2)}</p>
+                  <p>Hist: {indicators.macd.histogram.toFixed(2)}</p>
+                </>
+              ) : (
+                <p>MACD: 데이터 없음</p>
+              )}
+            </div>
           </Card>
           <Card title="지지선">
             <LevelList levels={indicators.supportResistance.supports} currency={currency} />

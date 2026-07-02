@@ -107,6 +107,13 @@ export interface MovingAverages {
   sma200: number | null;
 }
 
+export interface MacdIndicator {
+  macd: number;
+  signal: number;
+  histogram: number;
+  status: "상승 신호" | "하락 신호" | "중립";
+}
+
 export interface SupportResistanceLevel {
   price: number;
   type: "support" | "resistance";
@@ -151,6 +158,7 @@ export interface StockIndicators {
   movingAverages: MovingAverages;
   rsi: number;
   rsiStatus: RsiStatus;
+  macd: MacdIndicator | null;
   supportResistance: SupportResistance;
   compositeSignal: CompositeSignal;
   shortInterestLabel: string;

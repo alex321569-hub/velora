@@ -1,5 +1,6 @@
 import {
   calculateBollingerBands,
+  calculateMACD,
   calculatePercentChange,
   calculateRSI,
   calculateSMA,
@@ -304,6 +305,7 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
         movingAverages: { sma5: null, sma20: null, sma60: null, sma120: null, sma200: null },
         rsi: 0,
         rsiStatus: "보통",
+        macd: null,
         supportResistance: { supports: [], resistances: [] },
         compositeSignal: {
           trendStatus: "횡보",
@@ -333,6 +335,7 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
     sma200: calculateSMA(closes, 200),
   };
   const rsi = calculateRSI(closes);
+  const macd = calculateMACD(closes);
   const supportResistance = calculateSupportResistance(sortedPrices, currentPrice);
   const recentPrices = sortedPrices.slice(-10).reverse().map((price) => {
     const originalIndex = sortedPrices.findIndex((candidate) => candidate.date === price.date);
@@ -424,6 +427,7 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
       movingAverages,
       rsi,
       rsiStatus: getRsiStatus(rsi),
+      macd,
       supportResistance,
       compositeSignal: {
         trendStatus,
