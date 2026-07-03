@@ -4,14 +4,14 @@ import { AlertTriangle, LineChart, Moon, Search, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AnalysisCards from "@/components/AnalysisCards";
-import MiniPriceChart from "@/components/MiniPriceChart";
+import PriceChartPanel from "@/components/PriceChartPanel";
 import RecentPriceList from "@/components/RecentPriceList";
 import SearchBox from "@/components/SearchBox";
 import StockBasicInfo from "@/components/StockBasicInfo";
 import { useLiveQuote } from "@/hooks/useLiveQuote";
 import type { SearchFilter, StockAlias, StockAnalysisResponse } from "@/lib/market/types";
 
-export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
+function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
   const router = useRouter();
   const [stock, setStock] = useState<StockAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -191,7 +191,7 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
           {loading && (
             <>
               <div className="py-8 text-center text-sm font-bold text-muted">데이터를 불러오는 중입니다.</div>
-              <MiniPriceChart prices={[]} currency="USD" currentPrice={0} isLoading />
+              <PriceChartPanel symbol="" prices={[]} currency="USD" currentPrice={0} isLoading />
             </>
           )}
           {error && <div className="py-20 text-center text-sm font-bold text-negative">{error}</div>}
@@ -206,7 +206,8 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
                   refreshError: liveQuote.refreshError,
                 }}
               />
-              <MiniPriceChart
+              <PriceChartPanel
+                symbol={stock.basic.symbol}
                 prices={stock.chartPrices}
                 currency={stock.basic.currency}
                 currentPrice={stock.basic.currentPrice}
@@ -241,6 +242,4 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
   );
 }
 
-export default function Home() {
-  return <VeloraApp />;
-}
+export default VeloraApp;
