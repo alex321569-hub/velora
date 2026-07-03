@@ -48,7 +48,9 @@ function cleanName(value: string): string {
 
 function inferAssetType(name: string, etfFlag: string): AssetType {
   if (etfFlag.toUpperCase() === "Y") return "etf";
-  return /\b(ETF|ETN|Fund|Trust|Shares|SPDR|iShares|Vanguard|Invesco|ProShares|Direxion)\b/i.test(name) ? "etf" : "stock";
+  if (/\b(ETF|ETN)\b/i.test(name)) return "etf";
+  if (/\bExchange Traded Fund\b/i.test(name)) return "etf";
+  return "stock";
 }
 
 function inferSectorIndustry(name: string, assetType: AssetType): { sector: string; industry: string } {
@@ -57,7 +59,8 @@ function inferSectorIndustry(name: string, assetType: AssetType): { sector: stri
   const lowerName = name.toLowerCase();
   if (/(bank|financial|capital|credit|insurance|bancorp)/.test(lowerName)) return { sector: "Financials", industry: "Financial Services" };
   if (/(bio|pharma|therapeutics|health|medical|surgical|genomics)/.test(lowerName)) return { sector: "Healthcare", industry: "Healthcare" };
-  if (/(semiconductor|micro|chip|silicon|technology|software|systems|data|cloud|cyber)/.test(lowerName)) return { sector: "Technology", industry: "Technology" };
+  if (/(ase technology|semiconductor|chip|silicon)/.test(lowerName)) return { sector: "Semiconductor", industry: "Semiconductor" };
+  if (/(technology|software|systems|data|cloud|cyber)/.test(lowerName)) return { sector: "Technology", industry: "Technology" };
   if (/(energy|oil|gas|petroleum|solar|power)/.test(lowerName)) return { sector: "Energy", industry: "Energy" };
   if (/(reit|realty|properties|property|real estate)/.test(lowerName)) return { sector: "Real Estate", industry: "Real Estate" };
   if (/(airline|aerospace|defense|industrial|machinery|rail|logistics|shipping)/.test(lowerName)) return { sector: "Industrials", industry: "Industrials" };
@@ -132,10 +135,29 @@ async function main() {
   }
 
   const payload = Array.from(stocks.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  const etfCount = payload.filter((item) => item.assetType === "etf").length;
+  const suspiciousEtfCount = payload.filter(
+    (item) =>
+      item.assetType === "etf" &&
+      /(American Depositary Shares?|Depositary Shares|Common Shares?|Ordinary Shares?|Class A Ordinary Shares)/i.test(
+        [item.name, item.sector, item.industry, ...item.aliases].join(" "),
+      ),
+  ).length;
+  const depositaryOrOrdinaryEtfCount = payload.filter(
+    (item) =>
+      item.assetType === "etf" &&
+      /(American Depositary Shares?|Depositary Shares|Ordinary Shares?|Class A Ordinary Shares)/i.test(
+        [item.name, item.sector, item.industry, ...item.aliases].join(" "),
+      ),
+  ).length;
+
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 
   console.log(`Wrote ${payload.length.toLocaleString()} symbols to ${outputPath}`);
+  console.log(`ETF count: ${etfCount.toLocaleString()}`);
+  console.log(`Suspicious ADR/common/ordinary share ETFs: ${suspiciousEtfCount.toLocaleString()}`);
+  console.log(`Depositary/ordinary share ETFs: ${depositaryOrOrdinaryEtfCount.toLocaleString()}`);
 }
 
 main().catch((error) => {
