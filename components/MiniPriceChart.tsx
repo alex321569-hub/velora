@@ -36,7 +36,7 @@ function MiniTooltip({
   const point = payload[0].payload;
 
   return (
-    <div className="max-w-[calc(100vw-2rem)] rounded-lg border border-line bg-[#111418] px-3 py-2 text-xs font-bold leading-5 text-ink shadow-glow">
+    <div className="max-w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-line bg-[#111418] px-3 py-2 text-xs font-bold leading-5 text-ink shadow-glow">
       <p className="font-extrabold text-positive">{point.date}</p>
       <p>종가: {formatPrice(point.close, currency)}</p>
       <p className={getPercentColorClass(point.changePercent)}>전일 대비: {formatPercent(point.changePercent)}</p>
@@ -63,17 +63,17 @@ export default function MiniPriceChart({
 
   return (
     <section className="border-b border-line py-5">
-      <div className="rounded-lg bg-surface p-4 sm:p-5">
-        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0 overflow-hidden rounded-lg bg-surface p-4 sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-lg font-extrabold">최근 30일 가격 추이</h2>
             <p className="mt-1 text-sm font-bold text-muted">종가 기준 미니 라인차트</p>
           </div>
-          <div className="flex flex-wrap gap-2 text-sm font-extrabold">
-            <span className="rounded-full border border-line bg-panel/70 px-3 py-1 text-ink">
+          <div className="grid gap-2 text-sm font-extrabold sm:flex sm:flex-wrap">
+            <span className="rounded-full border border-line bg-panel/70 px-3 py-1 text-center text-ink">
               현재가 {formatPrice(currentPrice, currency)}
             </span>
-            <span className={`rounded-full border border-line bg-panel/70 px-3 py-1 ${getPercentColorClass(returnPercent)}`}>
+            <span className={`rounded-full border border-line bg-panel/70 px-3 py-1 text-center ${getPercentColorClass(returnPercent)}`}>
               30일 수익률 {formatPercent(returnPercent)}
             </span>
           </div>
@@ -84,9 +84,9 @@ export default function MiniPriceChart({
             차트 데이터 없음
           </div>
         ) : (
-          <div className="h-40 sm:h-52">
+          <div className="h-40 min-w-0 sm:h-52">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <LineChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: -8 }}>
                 <CartesianGrid stroke="rgba(167, 173, 183, 0.16)" vertical={false} />
                 <XAxis
                   dataKey="label"
@@ -94,9 +94,10 @@ export default function MiniPriceChart({
                   tickLine={false}
                   axisLine={{ stroke: "rgba(167, 173, 183, 0.2)" }}
                   minTickGap={18}
+                  interval="preserveStartEnd"
                 />
                 <YAxis
-                  width={46}
+                  width={42}
                   domain={["dataMin", "dataMax"]}
                   tickFormatter={(value) => formatPrice(Number(value), currency)}
                   tick={{ fill: "var(--muted)", fontSize: 11, fontWeight: 700 }}
@@ -106,6 +107,7 @@ export default function MiniPriceChart({
                 <Tooltip
                   content={<MiniTooltip currency={currency} />}
                   cursor={{ stroke: "rgba(167, 173, 183, 0.28)", strokeWidth: 1 }}
+                  allowEscapeViewBox={{ x: false, y: true }}
                   wrapperStyle={{ outline: "none" }}
                 />
                 <Line
