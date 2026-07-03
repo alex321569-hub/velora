@@ -13,8 +13,8 @@ function getDistancePercent(price: number | null | undefined, currentPrice: numb
 
 function isMacdStatus(status: string | undefined, keyword: "up" | "down") {
   if (!status) return false;
-  if (keyword === "up") return status.includes("상승") || status.includes("곸듅");
-  return status.includes("하락") || status.includes("섎씫");
+  if (keyword === "up") return status.includes("상승");
+  return status.includes("하락");
 }
 
 function getAiRating(score: number): Rating {
@@ -166,7 +166,7 @@ export function getMacdStatusClass(status: string) {
   return "text-muted";
 }
 
-export function buildAiOpinion({ indicators, currentPrice, currency: _currency, recentPrices }: AnalysisInput): AiOpinion {
+export function buildAiOpinion({ indicators, currentPrice, recentPrices }: AnalysisInput): AiOpinion {
   const ma = indicators.movingAverages;
   const support = indicators.supportResistance.supports[0] ?? null;
   const resistance = indicators.supportResistance.resistances[0] ?? null;
@@ -231,7 +231,7 @@ export function buildAiOpinion({ indicators, currentPrice, currency: _currency, 
     (indicators.rsi >= 50 && isMacdStatus(macdStatus, "up")) || (indicators.rsi < 50 && isMacdStatus(macdStatus, "down"));
   const volumeProfileExists = indicators.supportResistance.supports
     .concat(indicators.supportResistance.resistances)
-    .some((level) => level.reason.includes("거래량") || level.reason.includes("嫄곕옒"));
+    .some((level) => level.reason.includes("거래량"));
 
   hasEnoughData ? addConfidence("데이터 품질", 5, "최근 시세 확보") : addConfidence("데이터 품질", -10, "최근 데이터 부족");
   ma.sma200 !== null ? addConfidence("장기 데이터", 3, "200일선 계산 가능") : addConfidence("장기 데이터", -8, "200일선 부족");

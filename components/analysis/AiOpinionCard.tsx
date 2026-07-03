@@ -37,10 +37,18 @@ export default function AiOpinionCard({
       : opinion.confidenceScore < 80
         ? "현재 분석은 참고용으로 사용하시기 바랍니다."
         : null;
+  const scoreItemsKey = useMemo(
+    () => opinion.scoreItems.map((item) => `${item.label}:${item.points}:${item.reason}`).join("|"),
+    [opinion.scoreItems],
+  );
 
   useEffect(() => {
     const key = `velora-ai-history-${symbol}`;
     const today = getTodayKey();
+    const reasons = opinion.scoreItems
+      .slice()
+      .sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
+      .map((item) => ({ label: item.label, points: item.points, reason: item.reason }));
     const entry: HistoryEntry = {
       date: today,
       score: opinion.aiScore,
@@ -49,10 +57,7 @@ export default function AiOpinionCard({
       rsi: indicators.rsi,
       macd: opinion.macdLabel,
       trend: opinion.trendLabel,
-      reasons: opinion.scoreItems
-        .slice()
-        .sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
-        .map((item) => ({ label: item.label, points: item.points, reason: item.reason })),
+      reasons,
     };
 
     try {
@@ -66,7 +71,16 @@ export default function AiOpinionCard({
       setHistory([entry]);
       setSelectedDate(today);
     }
-  }, [symbol, indicators.rsi, opinion]);
+  }, [
+    symbol,
+    indicators.rsi,
+    opinion.aiScore,
+    opinion.rating.stars,
+    opinion.risk.label,
+    opinion.macdLabel,
+    opinion.trendLabel,
+    scoreItemsKey,
+  ]);
 
   const checkpoints = useMemo(() => buildCheckpoints(opinion, indicators, currency), [opinion, indicators, currency]);
 
