@@ -50,6 +50,7 @@ export default function SearchBox({
   const [selectedLabel, setSelectedLabel] = useState("");
   const [recentSymbols, setRecentSymbols] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+  const quickStocksRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(query), 150);
@@ -95,7 +96,7 @@ export default function SearchBox({
     if (savedRecent) {
       try {
         const parsed = JSON.parse(savedRecent) as string[];
-        setRecentSymbols(parsed.slice(0, 5));
+        setRecentSymbols(parsed.slice(0, 10));
       } catch {
         setRecentSymbols([]);
       }
@@ -117,12 +118,27 @@ export default function SearchBox({
     setQuery(label);
     setIsOpen(false);
     setRecentSymbols((currentSymbols) => {
-      const nextSymbols = [stock.symbol, ...currentSymbols.filter((symbol) => symbol !== stock.symbol)].slice(0, 8);
+      const nextSymbols = [stock.symbol, ...currentSymbols.filter((symbol) => symbol !== stock.symbol)].slice(0, 10);
       window.localStorage.setItem("stock-dashboard-recent-searches", JSON.stringify(nextSymbols));
       return nextSymbols;
     });
     onSelect(stock);
   }
+
+  useEffect(() => {
+    const el = quickStocksRef.current;
+    if (!el) return;
+
+    const savedScrollLeft = Number(window.sessionStorage.getItem(`velora-quick-scroll-${selectedFilter}`) ?? "0");
+    el.scrollLeft = savedScrollLeft;
+
+    const handleScroll = () => {
+      window.sessionStorage.setItem(`velora-quick-scroll-${selectedFilter}`, String(el.scrollLeft));
+    };
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [selectedFilter, quickStocks.length]);
 
   function selectDirectTicker(value: string) {
     const symbol = normalizeSymbolInput(value);
@@ -216,6 +232,7 @@ export default function SearchBox({
 
           <div className="mt-3 flex justify-center">
             <div
+              ref={quickStocksRef}
               key={selectedFilter}
               className="mx-auto flex max-w-full animate-fade-slide-up justify-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >

@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, LineChart, Moon, Search, Sun } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AnalysisCards from "@/components/AnalysisCards";
 import RecentPriceList from "@/components/RecentPriceList";
@@ -9,13 +10,14 @@ import StockBasicInfo from "@/components/StockBasicInfo";
 import { useLiveQuote } from "@/hooks/useLiveQuote";
 import type { SearchFilter, StockAlias, StockAnalysisResponse } from "@/lib/market/types";
 
-export default function Home() {
+export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
+  const router = useRouter();
   const [stock, setStock] = useState<StockAnalysisResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [selectedFilter, setSelectedFilter] = useState<SearchFilter>("all");
-  const hasSearched = Boolean(stock || loading || error);
+  const hasSearched = Boolean(routeSymbol || stock || loading || error);
   const handleLiveUpdate = useCallback((nextStock: StockAnalysisResponse) => {
     setStock(nextStock);
   }, []);
@@ -26,7 +28,7 @@ export default function Home() {
     onUpdate: handleLiveUpdate,
   });
 
-  async function loadStock(symbol: string) {
+  const loadStock = useCallback(async (symbol: string) => {
     setLoading(true);
     setError("");
 
@@ -43,16 +45,15 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   function handleSelect(stockAlias: StockAlias) {
-    void loadStock(stockAlias.symbol);
+    window.sessionStorage.setItem("velora-home-scroll-y", String(window.scrollY));
+    router.push(`/stock/${encodeURIComponent(stockAlias.symbol)}`);
   }
 
   function goHome() {
-    setStock(null);
-    setError("");
-    setLoading(false);
+    router.push("/");
   }
 
   useEffect(() => {
@@ -60,7 +61,32 @@ export default function Home() {
     if (savedTheme === "dark" || savedTheme === "light") {
       setTheme(savedTheme);
     }
+
+    const savedFilter = window.localStorage.getItem("velora-selected-filter") as SearchFilter | null;
+    if (savedFilter) {
+      setSelectedFilter(savedFilter);
+    }
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("velora-selected-filter", selectedFilter);
+  }, [selectedFilter]);
+
+  useEffect(() => {
+    if (routeSymbol) {
+      void loadStock(routeSymbol);
+      return;
+    }
+
+    setStock(null);
+    setError("");
+    setLoading(false);
+
+    const savedScrollY = Number(window.sessionStorage.getItem("velora-home-scroll-y") ?? "0");
+    if (savedScrollY > 0) {
+      window.requestAnimationFrame(() => window.scrollTo({ top: savedScrollY, behavior: "instant" }));
+    }
+  }, [loadStock, routeSymbol]);
 
   function toggleTheme() {
     setTheme((currentTheme) => {
@@ -172,4 +198,8 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+export default function Home() {
+  return <VeloraApp />;
 }
