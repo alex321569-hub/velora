@@ -112,6 +112,10 @@ function getResistanceDistanceScore(percent: number | null, isNearWeek52High: bo
   return 10;
 }
 
+function isKoreanDirectCode(symbol: string) {
+  return /^[0-9]{6}(\.(KS|KQ))?$/i.test(symbol.trim());
+}
+
 export function getMarketProvider(): StockMarketProvider {
   const providerName = process.env.MARKET_PROVIDER?.toLowerCase();
 
@@ -131,6 +135,11 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   ]);
 
   if (!profile) {
+    return null;
+  }
+
+  const hasQuotePrice = quote?.currentPrice !== null && quote?.currentPrice !== undefined;
+  if (isKoreanDirectCode(symbol) && !hasQuotePrice && historicalPrices.length === 0) {
     return null;
   }
 

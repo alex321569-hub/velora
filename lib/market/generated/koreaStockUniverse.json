@@ -1,0 +1,112 @@
+[
+  {
+    "symbol": "005930",
+    "name": "Samsung Electronics",
+    "koreanName": "삼성전자",
+    "exchange": "KOSPI",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Technology",
+    "industry": "Semiconductor",
+    "aliases": ["005930", "005930.KS", "Samsung Electronics", "samsung", "삼성전자", "삼전"]
+  },
+  {
+    "symbol": "000660",
+    "name": "SK Hynix",
+    "koreanName": "SK하이닉스",
+    "exchange": "KOSPI",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Semiconductor",
+    "industry": "Memory Semiconductor",
+    "aliases": ["000660", "000660.KS", "SK Hynix", "하이닉스"]
+  },
+  {
+    "symbol": "035420",
+    "name": "NAVER",
+    "koreanName": "NAVER",
+    "exchange": "KOSPI",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Technology",
+    "industry": "Internet Services",
+    "aliases": ["035420", "035420.KS", "네이버"]
+  },
+  {
+    "symbol": "035720",
+    "name": "Kakao",
+    "koreanName": "카카오",
+    "exchange": "KOSPI",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Technology",
+    "industry": "Internet Services",
+    "aliases": ["035720", "035720.KS", "카카오"]
+  },
+  {
+    "symbol": "068270",
+    "name": "Celltrion",
+    "koreanName": "셀트리온",
+    "exchange": "KOSPI",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Bio",
+    "industry": "Biopharmaceuticals",
+    "aliases": ["068270", "068270.KS", "셀트리온", "셀트"]
+  },
+  {
+    "symbol": "247540",
+    "name": "Ecopro BM",
+    "koreanName": "에코프로비엠",
+    "exchange": "KOSDAQ",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "EV",
+    "industry": "Battery Materials",
+    "aliases": ["247540", "247540.KQ", "에코프로비엠", "에코프로BM"]
+  },
+  {
+    "symbol": "091990",
+    "name": "Celltrion Healthcare",
+    "koreanName": "셀트리온헬스케어",
+    "exchange": "KOSDAQ",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Bio",
+    "industry": "Healthcare Distribution",
+    "aliases": ["091990", "091990.KQ", "셀트리온헬스케어"]
+  },
+  {
+    "symbol": "086520",
+    "name": "Ecopro",
+    "koreanName": "에코프로",
+    "exchange": "KOSDAQ",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "EV",
+    "industry": "Battery Materials",
+    "aliases": ["086520", "086520.KQ", "에코프로"]
+  },
+  {
+    "symbol": "196170",
+    "name": "Alteogen",
+    "koreanName": "알테오젠",
+    "exchange": "KOSDAQ",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Bio",
+    "industry": "Biotechnology",
+    "aliases": ["196170", "196170.KQ", "알테오젠"]
+  },
+  {
+    "symbol": "112040",
+    "name": "Wemade",
+    "koreanName": "위메이드",
+    "exchange": "KOSDAQ",
+    "country": "KR",
+    "assetType": "stock",
+    "sector": "Gaming",
+    "industry": "Gaming",
+    "aliases": ["112040", "112040.KQ", "위메이드"]
+  }
+]

@@ -1,10 +1,12 @@
 import generatedStockUniverse from "./generated/stockUniverse.json";
+import generatedKoreaStockUniverse from "./generated/koreaStockUniverse.json";
 import type { StockUniverseItem } from "./types";
 
 type GeneratedStockUniverseItem = {
   symbol: string;
   name: string;
   exchange: string;
+  koreanName?: string;
   country: "US" | "KR" | "GLOBAL";
   assetType: "stock" | "etf";
   sector: string;
@@ -39,14 +41,14 @@ const manualStockOverrides: ManualStockOverride[] = [
   { symbol: "SCHD", koreanName: "슈왑 미국 배당 ETF", assetType: "etf", sector: "ETF", industry: "Dividend ETF", aliases: ["배당 ETF"] },
   { symbol: "JEPQ", koreanName: "제이피모건 나스닥 인컴 ETF", assetType: "etf", sector: "ETF", aliases: ["나스닥 인컴 ETF"] },
   { symbol: "TQQQ", koreanName: "나스닥 3배 ETF", assetType: "etf", sector: "ETF", aliases: ["나스닥 3배"] },
-  { symbol: "005930", name: "Samsung Electronics", koreanName: "삼성전자", exchange: "KRX", country: "KR", sector: "Technology", industry: "Semiconductor", assetType: "stock", aliases: ["005930.KS", "Samsung Electronics", "samsung", "삼전", "삼"] },
-  { symbol: "000660", name: "SK Hynix", koreanName: "SK하이닉스", exchange: "KRX", country: "KR", sector: "Semiconductor", industry: "Memory Semiconductor", assetType: "stock", aliases: ["000660.KS", "SK Hynix", "하이닉스", "닉스"] },
-  { symbol: "005380", name: "Hyundai Motor", koreanName: "현대차", exchange: "KRX", country: "KR", sector: "EV", industry: "Automotive & EV", assetType: "stock", aliases: ["005380.KS", "HYUNDAI", "현대자동차", "현차"] },
-  { symbol: "035420", name: "NAVER", koreanName: "NAVER", exchange: "KRX", country: "KR", sector: "Technology", industry: "Internet Services", assetType: "stock", aliases: ["035420.KS", "네이버"] },
-  { symbol: "035720", name: "Kakao", koreanName: "카카오", exchange: "KRX", country: "KR", sector: "Technology", industry: "Internet Services", assetType: "stock", aliases: ["035720.KS"] },
-  { symbol: "068270", name: "Celltrion", koreanName: "셀트리온", exchange: "KRX", country: "KR", sector: "Bio", industry: "Biopharmaceuticals", assetType: "stock", aliases: ["068270.KS", "셀트"] },
-  { symbol: "373220", name: "LG Energy Solution", koreanName: "LG에너지솔루션", exchange: "KRX", country: "KR", sector: "EV", industry: "Battery", assetType: "stock", aliases: ["373220.KS", "LG엔솔", "엘지엔솔"] },
-  { symbol: "012450", name: "Hanwha Aerospace", koreanName: "한화에어로스페이스", exchange: "KRX", country: "KR", sector: "Aerospace", industry: "Defense & Aerospace", assetType: "stock", aliases: ["012450.KS", "한화에어로"] },
+  { symbol: "005930", name: "Samsung Electronics", koreanName: "삼성전자", exchange: "KOSPI", country: "KR", sector: "Technology", industry: "Semiconductor", assetType: "stock", aliases: ["005930.KS", "Samsung Electronics", "samsung", "삼전", "삼"] },
+  { symbol: "000660", name: "SK Hynix", koreanName: "SK하이닉스", exchange: "KOSPI", country: "KR", sector: "Semiconductor", industry: "Memory Semiconductor", assetType: "stock", aliases: ["000660.KS", "SK Hynix", "하이닉스", "닉스"] },
+  { symbol: "005380", name: "Hyundai Motor", koreanName: "현대차", exchange: "KOSPI", country: "KR", sector: "EV", industry: "Automotive & EV", assetType: "stock", aliases: ["005380.KS", "HYUNDAI", "현대자동차", "현차"] },
+  { symbol: "035420", name: "NAVER", koreanName: "NAVER", exchange: "KOSPI", country: "KR", sector: "Technology", industry: "Internet Services", assetType: "stock", aliases: ["035420.KS", "네이버"] },
+  { symbol: "035720", name: "Kakao", koreanName: "카카오", exchange: "KOSPI", country: "KR", sector: "Technology", industry: "Internet Services", assetType: "stock", aliases: ["035720.KS"] },
+  { symbol: "068270", name: "Celltrion", koreanName: "셀트리온", exchange: "KOSPI", country: "KR", sector: "Bio", industry: "Biopharmaceuticals", assetType: "stock", aliases: ["068270.KS", "셀트"] },
+  { symbol: "373220", name: "LG Energy Solution", koreanName: "LG에너지솔루션", exchange: "KOSPI", country: "KR", sector: "EV", industry: "Battery", assetType: "stock", aliases: ["373220.KS", "LG엔솔", "엘지엔솔"] },
+  { symbol: "012450", name: "Hanwha Aerospace", koreanName: "한화에어로스페이스", exchange: "KOSPI", country: "KR", sector: "Aerospace", industry: "Defense & Aerospace", assetType: "stock", aliases: ["012450.KS", "한화에어로"] },
 ];
 
 function normalizeSymbol(symbol: string): string {
@@ -63,13 +65,13 @@ function toUniverseItem(item: GeneratedStockUniverseItem): StockUniverseItem {
   return {
     symbol: normalizeSymbol(item.symbol),
     name: override?.name ?? item.name,
-    koreanName: override?.koreanName ?? item.name,
+    koreanName: override?.koreanName ?? item.koreanName ?? item.name,
     exchange: override?.exchange ?? item.exchange,
     country: override?.country ?? item.country,
     assetType: override?.assetType ?? item.assetType,
     sector: override?.sector ?? item.sector,
     industry: override?.industry ?? item.industry,
-    aliases: mergeAliases([item.symbol, item.name], item.aliases, override?.aliases),
+    aliases: mergeAliases([item.symbol, item.name, item.koreanName ?? ""], item.aliases, override?.aliases),
     searchBoost: override?.searchBoost,
   };
 }
@@ -89,7 +91,7 @@ function toManualItem(item: ManualStockOverride): StockUniverseItem {
   };
 }
 
-const generatedItems = (generatedStockUniverse as GeneratedStockUniverseItem[]).map(toUniverseItem);
+const generatedItems = ([...generatedStockUniverse, ...generatedKoreaStockUniverse] as GeneratedStockUniverseItem[]).map(toUniverseItem);
 const generatedSymbols = new Set(generatedItems.map((item) => normalizeSymbol(item.symbol)));
 const manualOnlyItems = manualStockOverrides
   .filter((item) => !generatedSymbols.has(normalizeSymbol(item.symbol)))

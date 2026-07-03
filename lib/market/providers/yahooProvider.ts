@@ -78,17 +78,33 @@ const yahooHeaders = {
   Accept: "application/json",
 };
 
+const koreanYahooSymbolCache = new Map<string, Promise<string | null>>();
+
 function getUniverseItem(symbol: string) {
   const normalizedSymbol = normalizeSymbolInput(symbol);
   return stockUniverse.find((stock) => normalizeSymbolInput(stock.symbol) === normalizedSymbol) ?? null;
 }
 
-function toYahooSymbol(symbol: string): string {
+function getPreferredKoreanSuffix(item: StockUniverseItem | null, symbol: string): "KS" | "KQ" | null {
+  const upperSymbol = symbol.toUpperCase();
+  if (upperSymbol.endsWith(".KS")) return "KS";
+  if (upperSymbol.endsWith(".KQ")) return "KQ";
+  if (item?.exchange?.toUpperCase().includes("KOSDAQ")) return "KQ";
+  if (item?.exchange?.toUpperCase().includes("KOSPI")) return "KS";
+  return null;
+}
+
+function toYahooSymbolSync(symbol: string): string {
   const item = getUniverseItem(symbol);
   const normalizedSymbol = normalizeSymbolInput(symbol);
+  const preferredSuffix = getPreferredKoreanSuffix(item, symbol);
 
   if (symbol.toUpperCase().endsWith(".KS") || symbol.toUpperCase().endsWith(".KQ")) {
     return symbol.toUpperCase();
+  }
+
+  if (preferredSuffix && /^[0-9]{6}$/.test(normalizedSymbol)) {
+    return `${normalizedSymbol}.${preferredSuffix}`;
   }
 
   if (item?.country === "KR" && /^[0-9]{6}$/.test(normalizedSymbol)) {
@@ -106,6 +122,99 @@ function toYahooSymbol(symbol: string): string {
   return normalizedSymbol;
 }
 
+async function fetchYahooChartByYahooSymbol(yahooSymbol: string, range = "1y"): Promise<YahooChartResult | null> {
+  const encodedSymbol = encodeURIComponent(yahooSymbol);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodedSymbol}?range=${encodeURIComponent(range)}&interval=1d&events=history`;
+  const response = await fetch(url, {
+    headers: yahooHeaders,
+    next: { revalidate: 300 },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as YahooChartResponse;
+  if (payload.chart?.error) {
+    return null;
+  }
+
+  const result = payload.chart?.result?.[0] ?? null;
+  if (!result?.timestamp?.length && typeof result?.meta?.regularMarketPrice !== "number") {
+    return null;
+  }
+
+  return result;
+}
+
+async function fetchYahooQuoteByYahooSymbol(yahooSymbol: string): Promise<YahooQuoteResult | null> {
+  const encodedSymbol = encodeURIComponent(yahooSymbol);
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodedSymbol}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: yahooHeaders,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as YahooQuoteResponse;
+    if (payload.quoteResponse?.error) {
+      return null;
+    }
+
+    return payload.quoteResponse?.result?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveYahooSymbol(symbol: string): Promise<string | null> {
+  const item = getUniverseItem(symbol);
+  const normalizedSymbol = normalizeSymbolInput(symbol);
+  const upperSymbol = symbol.toUpperCase();
+
+  if (upperSymbol.endsWith(".KS") || upperSymbol.endsWith(".KQ")) {
+    return upperSymbol;
+  }
+
+  if (!/^[0-9]{6}$/.test(normalizedSymbol)) {
+    return toYahooSymbolSync(symbol);
+  }
+
+  const preferredSuffix = getPreferredKoreanSuffix(item, symbol);
+  if (preferredSuffix) {
+    return `${normalizedSymbol}.${preferredSuffix}`;
+  }
+
+  if (!koreanYahooSymbolCache.has(normalizedSymbol)) {
+    koreanYahooSymbolCache.set(
+      normalizedSymbol,
+      (async () => {
+        for (const suffix of ["KS", "KQ"] as const) {
+          const candidate = `${normalizedSymbol}.${suffix}`;
+          const quote = await fetchYahooQuoteByYahooSymbol(candidate);
+          if (quote && (typeof quote.regularMarketPrice === "number" || typeof quote.preMarketPrice === "number" || typeof quote.postMarketPrice === "number")) {
+            return candidate;
+          }
+
+          const chart = await fetchYahooChartByYahooSymbol(candidate, "1mo");
+          if (chart) {
+            return candidate;
+          }
+        }
+
+        return null;
+      })(),
+    );
+  }
+
+  return koreanYahooSymbolCache.get(normalizedSymbol) ?? null;
+}
+
 function createDirectTickerProfile(symbol: string): CompanyProfile | null {
   if (!isTickerLikeInput(symbol)) {
     return null;
@@ -113,12 +222,13 @@ function createDirectTickerProfile(symbol: string): CompanyProfile | null {
 
   const normalizedSymbol = normalizeSymbolInput(symbol);
   const isKoreanTicker = /^[0-9]{6}$/.test(normalizedSymbol) || /\.KS$/i.test(symbol) || /\.KQ$/i.test(symbol);
+  const preferredSuffix = getPreferredKoreanSuffix(null, symbol);
 
   return {
     symbol: normalizedSymbol,
     name: normalizedSymbol,
     koreanName: normalizedSymbol,
-    exchange: isKoreanTicker ? "KRX" : "NASDAQ",
+    exchange: isKoreanTicker ? (preferredSuffix === "KS" ? "KOSPI" : preferredSuffix === "KQ" ? "KOSDAQ" : "KOSPI/KOSDAQ") : "NASDAQ",
     country: isKoreanTicker ? "KR" : "US",
     assetType: "stock",
     sector: "Other",
@@ -140,58 +250,41 @@ function toDirectTickerResult(symbol: string): StockUniverseItem | null {
 }
 
 async function fetchYahooChart(symbol: string, range = "1y"): Promise<YahooChartResult | null> {
-  const yahooSymbol = encodeURIComponent(toYahooSymbol(symbol));
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?range=${encodeURIComponent(range)}&interval=1d&events=history`;
-  const response = await fetch(url, {
-    headers: yahooHeaders,
-    next: { revalidate: 300 },
-  });
-
-  if (!response.ok) {
-    console.warn(`[market:yahoo] chart request failed for ${symbol}: ${response.status}`);
+  const yahooSymbol = await resolveYahooSymbol(symbol);
+  if (!yahooSymbol) {
     return null;
   }
 
-  const payload = (await response.json()) as YahooChartResponse;
-  if (payload.chart?.error) {
-    console.warn(`[market:yahoo] chart error for ${symbol}`, payload.chart.error);
-    return null;
+  const result = await fetchYahooChartByYahooSymbol(yahooSymbol, range);
+  if (!result) {
+    console.warn(`[market:yahoo] chart unavailable for ${symbol}`);
   }
 
-  return payload.chart?.result?.[0] ?? null;
+  return result;
 }
 
 async function fetchYahooQuote(symbol: string): Promise<YahooQuoteResult | null> {
-  const yahooSymbol = encodeURIComponent(toYahooSymbol(symbol));
-  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yahooSymbol}`;
-
-  try {
-    const response = await fetch(url, {
-      headers: yahooHeaders,
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      console.warn(`[market:yahoo] quote request failed for ${symbol}: ${response.status}`);
-      return null;
-    }
-
-    const payload = (await response.json()) as YahooQuoteResponse;
-    if (payload.quoteResponse?.error) {
-      console.warn(`[market:yahoo] quote error for ${symbol}`, payload.quoteResponse.error);
-      return null;
-    }
-
-    return payload.quoteResponse?.result?.[0] ?? null;
-  } catch (error) {
-    console.warn(`[market:yahoo] quote request failed for ${symbol}`, error);
+  const yahooSymbol = await resolveYahooSymbol(symbol);
+  if (!yahooSymbol) {
     return null;
   }
+
+  const quote = await fetchYahooQuoteByYahooSymbol(yahooSymbol);
+  if (!quote) {
+    console.warn(`[market:yahoo] quote unavailable for ${symbol}`);
+  }
+
+  return quote;
 }
 
 async function fetchYahooMarketCap(symbol: string): Promise<number | null> {
-  const yahooSymbol = encodeURIComponent(toYahooSymbol(symbol));
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${yahooSymbol}?modules=price`;
+  const yahooSymbol = await resolveYahooSymbol(symbol);
+  if (!yahooSymbol) {
+    return null;
+  }
+
+  const encodedSymbol = encodeURIComponent(yahooSymbol);
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodedSymbol}?modules=price`;
 
   try {
     const response = await fetch(url, {

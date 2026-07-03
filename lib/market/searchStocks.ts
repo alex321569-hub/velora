@@ -168,20 +168,56 @@ function rankStocks(query: string, filter: SearchFilter = "all"): RankedStock[] 
     .sort((a, b) => b.score - a.score || a.stock.symbol.localeCompare(b.stock.symbol));
 }
 
+function createKoreanDirectTicker(query: string): StockUniverseItem | null {
+  const normalizedSymbol = normalizeSymbolInput(query);
+  if (!/^[0-9]{6}$/.test(normalizedSymbol)) {
+    return null;
+  }
+
+  return {
+    symbol: normalizedSymbol,
+    name: normalizedSymbol,
+    koreanName: normalizedSymbol,
+    exchange: "KOSPI/KOSDAQ",
+    country: "KR",
+    assetType: "stock",
+    sector: "Other",
+    industry: "KOSPI/KOSDAQ",
+    aliases: [normalizedSymbol, `${normalizedSymbol}.KS`, `${normalizedSymbol}.KQ`],
+  };
+}
+
 export function searchStocksByAlias(query: string, filter: SearchFilter = "all"): StockUniverseItem[] {
-  return rankStocks(query, filter).map((result) => result.stock);
+  const results = rankStocks(query, filter).map((result) => result.stock);
+  const directTicker = createKoreanDirectTicker(query);
+  if (results.length === 0 && directTicker && (filter === "all" || filter === "kr")) {
+    return [directTicker];
+  }
+
+  return results;
 }
 
 export function getBestMatch(query: string, filter: SearchFilter = "all"): StockUniverseItem | null {
   const results = rankStocks(query, filter);
+  const directTicker = createKoreanDirectTicker(query);
+  if (results.length === 0 && directTicker && (filter === "all" || filter === "kr")) {
+    return directTicker;
+  }
+
   if (results.length === 0) return null;
   return results[0].score >= 6500 || results.length === 1 ? results[0].stock : null;
 }
 
 export function getAutocompleteResults(query: string, limit = 8, filter: SearchFilter = "all"): StockUniverseItem[] {
-  return rankStocks(query, filter)
+  const results = rankStocks(query, filter)
     .slice(0, limit)
     .map((result) => result.stock);
+  const directTicker = createKoreanDirectTicker(query);
+  if (results.length === 0 && directTicker && (filter === "all" || filter === "kr")) {
+    return [directTicker];
+  }
+
+  return results;
 }
 
 export function getSearchUniverseCount(): number {

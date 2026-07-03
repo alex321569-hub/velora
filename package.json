@@ -6,6 +6,7 @@
     "build": "next build",
     "start": "next start",
     "update:stock-universe": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/updateStockUniverse.ts",
+    "update:korea-stock-universe": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/updateKoreaStockUniverse.ts",
     "lint": "next lint"
   },
   "dependencies": {

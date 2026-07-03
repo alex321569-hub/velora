@@ -31,6 +31,19 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
 
   function getRouteSymbol(stockAlias: StockAlias) {
     if (stockAlias.country === "KR" && !/\.(KS|KQ)$/i.test(stockAlias.symbol)) {
+      const exchange = stockAlias.exchange.toUpperCase();
+      if (exchange.includes("KOSPI/KOSDAQ")) {
+        return stockAlias.symbol;
+      }
+
+      if (exchange.includes("KOSDAQ")) {
+        return `${stockAlias.symbol}.KQ`;
+      }
+
+      if (exchange.includes("KOSPI")) {
+        return `${stockAlias.symbol}.KS`;
+      }
+
       return `${stockAlias.symbol}.KS`;
     }
 
@@ -44,7 +57,7 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
     try {
       const response = await fetch(`/api/stocks?symbol=${encodeURIComponent(symbol)}`);
       if (!response.ok) {
-        throw new Error("종목 정보를 불러오지 못했습니다.");
+        throw new Error("종목을 찾을 수 없습니다. 티커를 직접 입력해보세요.");
       }
 
       setStock((await response.json()) as StockAnalysisResponse);

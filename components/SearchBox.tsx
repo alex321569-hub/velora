@@ -147,7 +147,7 @@ export default function SearchBox({
       symbol,
       name: symbol,
       koreanName: symbol,
-      exchange: isKoreanTicker ? "KRX" : "NASDAQ",
+      exchange: isKoreanTicker ? "KOSPI/KOSDAQ" : "NASDAQ",
       country: isKoreanTicker ? "KR" : "US",
       assetType: "stock",
       sector: "Other",
