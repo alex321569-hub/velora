@@ -11,6 +11,7 @@ import {
 import type { AiOpinion, HistoryEntry } from "@/lib/analysis/types";
 import { formatPercent, formatPrice } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo, StockIndicators } from "@/lib/market/types";
+import MobileDisclosure from "../MobileDisclosure";
 import AiCheckpointsCard from "./AiCheckpointsCard";
 import AiHistoryCard from "./AiHistoryCard";
 import Card from "./Card";
@@ -86,9 +87,15 @@ export default function AiOpinionCard({
 
   return (
     <>
-      <Card title="" className="sm:col-span-2 xl:col-span-4">
+      <MobileDisclosure
+        title="AI 종합 의견"
+        className="rounded-lg bg-surface p-3"
+        contentClassName="mt-3"
+        desktopClassName="contents"
+      >
+      <Card title="" className="md:col-span-2 xl:col-span-4">
         <div className="space-y-6">
-          <div className="flex items-start justify-between gap-4 border-b border-line pb-4">
+          <div className="flex flex-col items-start gap-3 border-b border-line pb-4 md:flex-row md:justify-between md:gap-4">
             <div>
               <h3 className="text-xl font-black text-ink">🤖 AI 종합 의견</h3>
               <p className="mt-1 text-xs font-bold uppercase tracking-[0.18em] text-muted">Velora Core Analysis</p>
@@ -102,7 +109,7 @@ export default function AiOpinionCard({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 min-[420px]:grid-cols-2 md:gap-4 xl:grid-cols-3">
             <StateTile icon="📈" label="장기 추세" value={opinion.trendLabel} tone={opinion.trendLabel === "상승" ? "text-positive" : opinion.trendLabel === "하락" ? "text-negative" : "text-muted"} />
             <StateTile icon="📉" label="단기 추세" value={opinion.shortLabel} tone={opinion.shortLabel === "조정 중" ? "text-yellow-300" : opinion.shortLabel === "단기 급등" ? "text-orange-300" : "text-positive"} />
             <StateTile icon="📊" label="RSI" value={indicators.rsi.toFixed(1)} sub={opinion.rsiLabel} tone={indicators.rsi >= 70 ? "text-yellow-300" : indicators.rsi <= 30 ? "text-negative" : "text-positive"} />
@@ -123,15 +130,15 @@ export default function AiOpinionCard({
             />
           </div>
 
-          <div className="rounded-2xl border border-line/70 bg-panel/70 p-5">
+          <div className="rounded-2xl border border-line/70 bg-panel/70 p-4 md:p-5">
             <p className="text-sm font-black text-muted">💬 AI 한줄 의견</p>
-            <p className="mt-3 text-lg font-black leading-8 text-ink">
+            <p className="mt-3 text-base font-black leading-7 text-ink md:text-lg md:leading-8">
               &quot;{opinion.aiComment}&quot;
               {opinion.caution && <span className="block text-yellow-300">{opinion.caution}</span>}
             </p>
           </div>
 
-          <div className="grid gap-4 border-t border-line pt-5 sm:grid-cols-3">
+          <div className="grid gap-4 border-t border-line pt-5 md:grid-cols-3">
             <div>
               <p className="text-3xl font-black tracking-normal text-positive">{opinion.rating.stars}</p>
               <p className="mt-1 text-base font-black text-ink">{opinion.rating.label}</p>
@@ -153,14 +160,14 @@ export default function AiOpinionCard({
           {confidenceWarning && <p className="rounded-xl bg-panel/70 px-4 py-3 text-sm font-bold text-yellow-300">{confidenceWarning}</p>}
 
           <details className="rounded-2xl border border-line/70 bg-panel/40">
-            <summary className="cursor-pointer px-5 py-4 text-sm font-black text-muted hover:text-ink">🧾 분석 근거 보기</summary>
-            <div className="space-y-5 border-t border-line/70 p-5 text-sm font-bold">
+            <summary className="cursor-pointer px-4 py-4 text-sm font-black text-muted hover:text-ink md:px-5">🧾 분석 근거 보기</summary>
+            <div className="space-y-4 border-t border-line/70 p-3 text-sm font-bold md:space-y-5 md:p-5">
               {groupBreakdownItems(opinion.scoreItems).map((group) => (
-                <div key={group.key} className="rounded-xl border border-line/70 bg-surface p-4">
+                <div key={group.key} className="rounded-xl border border-line/70 bg-surface p-3 md:p-4">
                   <p className="mb-3 font-black text-ink">{group.title}</p>
                   <div className="grid gap-2">
                     {group.items.map((item, index) => (
-                      <div key={`${item.label}-${index}`} className="grid grid-cols-[6rem_3rem_1fr] gap-3 rounded-lg bg-panel/60 px-3 py-2">
+                      <div key={`${item.label}-${index}`} className="grid gap-1 rounded-lg bg-panel/60 px-3 py-2 md:grid-cols-[6rem_3rem_1fr] md:gap-3">
                         <span className="text-muted">{item.label}</span>
                         <span className={item.points >= 0 ? "text-positive" : "text-negative"}>
                           {item.points >= 0 ? `+${item.points}` : item.points}
@@ -172,11 +179,11 @@ export default function AiOpinionCard({
                 </div>
               ))}
 
-              <div className="rounded-xl border border-line/70 bg-surface p-4">
+              <div className="rounded-xl border border-line/70 bg-surface p-3 md:p-4">
                 <p className="mb-3 font-black text-ink">🤖 AI 신뢰도</p>
                 <div className="grid gap-2">
                   {opinion.confidenceItems.map((item, index) => (
-                    <div key={`${item.label}-${index}`} className="grid grid-cols-[6rem_3rem_1fr] gap-3 rounded-lg bg-panel/60 px-3 py-2">
+                    <div key={`${item.label}-${index}`} className="grid gap-1 rounded-lg bg-panel/60 px-3 py-2 md:grid-cols-[6rem_3rem_1fr] md:gap-3">
                       <span className="text-muted">{item.label}</span>
                       <span className={item.points >= 0 ? "text-positive" : "text-negative"}>
                         {item.points >= 0 ? `+${item.points}` : item.points}
@@ -187,7 +194,7 @@ export default function AiOpinionCard({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-line/70 bg-surface p-4">
+              <div className="rounded-xl border border-line/70 bg-surface p-3 md:p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="font-black text-ink">AI 종합 점수</p>
                   <p className="font-black text-ink">{opinion.aiScore}점</p>
@@ -203,6 +210,7 @@ export default function AiOpinionCard({
           </details>
         </div>
       </Card>
+      </MobileDisclosure>
 
       <AiCheckpointsCard checkpoints={checkpoints} />
       <AiHistoryCard history={history} selectedDate={selectedDate} onSelectDate={setSelectedDate} />

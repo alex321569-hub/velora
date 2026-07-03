@@ -95,7 +95,7 @@ function StatPill({
   return (
     <div className="min-w-0 rounded-lg border border-line bg-panel/70 px-3 py-2">
       <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted">{label}</p>
-      <p className={`mt-1 truncate text-sm font-black sm:text-base ${className}`}>{value}</p>
+      <p className={`mt-1 truncate text-sm font-black md:text-base ${className}`}>{value}</p>
     </div>
   );
 }
@@ -103,12 +103,12 @@ function StatPill({
 export function MiniPriceChartSkeleton({ embedded = false }: { embedded?: boolean }) {
   const content = (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div key={index} className="h-14 w-full animate-pulse rounded-lg bg-panel" />
         ))}
       </div>
-      <div className="h-48 animate-pulse rounded-lg bg-panel/70 pb-5 sm:h-60" />
+      <div className="h-52 animate-pulse rounded-lg bg-panel/70 pb-6 md:h-60 md:pb-5" />
     </>
   );
 
@@ -116,7 +116,7 @@ export function MiniPriceChartSkeleton({ embedded = false }: { embedded?: boolea
 
   return (
     <section className="border-b border-line py-5">
-      <div className="overflow-hidden rounded-lg bg-surface p-4 sm:p-5">{content}</div>
+      <div className="overflow-hidden rounded-lg bg-surface p-3 md:p-5">{content}</div>
     </section>
   );
 }
@@ -159,7 +159,7 @@ export default function MiniPriceChart({
   const content = (
     <>
       <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[28rem]">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:min-w-[28rem]">
           <StatPill label="현재가" value={formatPrice(currentPrice, currency)} />
           <StatPill label={`${range} 수익률`} value={formatPercent(returnPercent)} className={getPercentColorClass(returnPercent)} />
           <StatPill label="고가" value={formatPrice(high, currency)} />
@@ -177,7 +177,7 @@ export default function MiniPriceChart({
                 key={option.id}
                 type="button"
                 onClick={() => setRange(option.id)}
-                className={`h-9 min-w-12 rounded-full px-3 text-sm font-black transition ${
+                className={`h-11 min-w-14 rounded-full px-3 text-sm font-black transition md:h-9 md:min-w-12 ${
                   active ? "bg-positive/20 text-positive" : "text-muted hover:bg-surface hover:text-ink"
                 }`}
                 aria-pressed={active}
@@ -191,11 +191,11 @@ export default function MiniPriceChart({
       </div>
 
       {chartData.length < 2 ? (
-        <div className="flex h-48 items-center justify-center rounded-lg border border-line bg-panel/50 px-4 pb-5 text-center text-sm font-bold text-muted sm:h-60">
+        <div className="flex h-52 items-center justify-center rounded-lg border border-line bg-panel/50 px-4 pb-6 text-center text-sm font-bold text-muted md:h-60 md:pb-5">
           차트 데이터 없음
         </div>
       ) : (
-        <div className="h-48 min-w-0 pb-5 sm:h-60">
+        <div className="h-52 min-w-0 pb-6 md:h-60 md:pb-5">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 18, left: 0 }}>
               <CartesianGrid stroke="rgba(167, 173, 183, 0.14)" vertical={false} />
@@ -241,7 +241,7 @@ export default function MiniPriceChart({
 
   return (
     <section className="border-b border-line py-5">
-      <div className="min-w-0 overflow-hidden rounded-lg bg-surface p-4 sm:p-5">
+      <div className="min-w-0 overflow-hidden rounded-lg bg-surface p-3 md:p-5">
         <div className="mb-4">
           <h2 className="text-lg font-extrabold">최근 가격 흐름</h2>
           <p className="mt-1 text-sm font-bold text-muted">종가 기준 미니 라인차트</p>

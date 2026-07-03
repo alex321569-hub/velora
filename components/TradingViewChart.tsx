@@ -48,7 +48,7 @@ function iframeHasDifferentSymbol(iframe: HTMLIFrameElement, expectedSymbol: str
 
 function TradingViewSkeleton() {
   return (
-    <div className="h-[22rem] animate-pulse rounded-lg border border-line bg-panel/70 sm:h-[28rem] lg:h-[34rem]" aria-hidden="true">
+    <div className="h-[26.25rem] animate-pulse rounded-lg border border-line bg-panel/70 md:h-[28rem] lg:h-[34rem]" aria-hidden="true">
       <div className="flex h-full flex-col justify-between p-4">
         <div className="space-y-2">
           <div className="h-4 w-36 rounded bg-surface" />
@@ -72,7 +72,7 @@ function UnsupportedKoreanChart({ onBackToMini }: { onBackToMini: () => void }) 
       <button
         type="button"
         onClick={onBackToMini}
-        className="h-10 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
+        className="h-11 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10 md:h-10"
       >
         미니 차트로 돌아가기
       </button>
@@ -87,7 +87,7 @@ function UnsupportedSymbolChart({ onBackToMini }: { onBackToMini: () => void }) 
       <button
         type="button"
         onClick={onBackToMini}
-        className="h-10 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
+        className="h-11 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10 md:h-10"
       >
         미니 차트로 돌아가기
       </button>
@@ -236,7 +236,7 @@ export default function TradingViewChart({
   }
 
   return (
-    <div className="relative min-h-[22rem] sm:min-h-[28rem] lg:min-h-[34rem]">
+    <div className="relative min-h-[26.25rem] md:min-h-[28rem] lg:min-h-[34rem]">
       {loadState === "loading" && (
         <div aria-live="polite" className="absolute inset-0 z-10">
           <TradingViewSkeleton />
@@ -258,7 +258,7 @@ export default function TradingViewChart({
             <button
               type="button"
               onClick={retry}
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
+              className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10 md:h-10"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               다시 시도
@@ -266,7 +266,7 @@ export default function TradingViewChart({
             <button
               type="button"
               onClick={onBackToMini}
-              className="h-10 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
+              className="h-11 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10 md:h-10"
             >
               미니 차트로 돌아가기
             </button>

@@ -2,6 +2,7 @@ import AiOpinionCard from "@/components/analysis/AiOpinionCard";
 import Card from "@/components/analysis/Card";
 import LevelList from "@/components/analysis/LevelList";
 import MovingAverageRow from "@/components/analysis/MovingAverageRow";
+import MobileDisclosure from "@/components/MobileDisclosure";
 import { buildAiOpinion, getMacdStatusClass } from "@/lib/analysis/aiAnalysis";
 import { formatPrice } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo, StockIndicators } from "@/lib/market/types";
@@ -22,7 +23,7 @@ export default function AnalysisCards({
   if (indicators.calculationError) {
     return (
       <section className="mt-6">
-        <h2 className="mb-4 text-lg font-extrabold">종목 분석</h2>
+        <h2 className="mb-4 hidden text-lg font-extrabold md:block">종목 분석</h2>
         <div className="rounded-lg bg-surface p-4 text-sm font-extrabold text-negative">데이터 오류로 지표 계산 불가</div>
       </section>
     );
@@ -32,8 +33,14 @@ export default function AnalysisCards({
 
   return (
     <section className="mt-6">
-      <h2 className="mb-4 text-lg font-extrabold">종목 분석</h2>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <h2 className="mb-4 hidden text-lg font-extrabold md:block">종목 분석</h2>
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-4">
+        <MobileDisclosure
+          title="종목 분석"
+          className="rounded-lg bg-surface p-3 md:contents md:rounded-none md:bg-transparent md:p-0"
+          contentClassName="mt-3 grid gap-3"
+          desktopClassName="contents"
+        >
         <Card title="52주 최고/최저">
           <p>최저: {formatPrice(indicators.week52Low, currency)}</p>
           <p>최고: {formatPrice(indicators.week52High, currency)}</p>
@@ -45,7 +52,7 @@ export default function AnalysisCards({
           <p>하단: {formatPrice(indicators.bollingerBands.lower, currency)}</p>
         </Card>
 
-        <Card title="이동평균선" className="sm:col-span-2 xl:col-span-2">
+        <Card title="이동평균선" className="md:col-span-2 xl:col-span-2">
           <div className="space-y-1">
             <MovingAverageRow label="5일" tooltip="단기 추세" value={indicators.movingAverages.sma5} currentPrice={currentPrice} currency={currency} />
             <MovingAverageRow label="20일" tooltip="한 달 추세" value={indicators.movingAverages.sma20} currentPrice={currentPrice} currency={currency} />
@@ -88,6 +95,8 @@ export default function AnalysisCards({
             <p>{indicators.supportResistance.resistanceMessage ?? "데이터 없음"}</p>
           )}
         </Card>
+
+        </MobileDisclosure>
 
         <AiOpinionCard
           symbol={symbol}

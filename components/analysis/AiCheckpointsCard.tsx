@@ -1,4 +1,5 @@
 import type { Checkpoint, CheckpointPriority } from "@/lib/analysis/types";
+import MobileDisclosure from "../MobileDisclosure";
 import Card from "./Card";
 
 export default function AiCheckpointsCard({
@@ -13,10 +14,16 @@ export default function AiCheckpointsCard({
   };
 
   return (
-    <Card title="🎯 AI 체크포인트" className="sm:col-span-2 xl:col-span-2">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <MobileDisclosure
+      title="AI 체크포인트"
+      className="rounded-lg bg-surface p-3"
+      contentClassName="mt-3"
+      desktopClassName="contents"
+    >
+    <Card title="🎯 AI 체크포인트" className="md:col-span-2 xl:col-span-2">
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4">
         {checkpoints.map((checkpoint) => (
-          <div key={checkpoint.title} className="rounded-2xl border border-line/70 bg-panel/60 p-5">
+          <div key={checkpoint.title} className="rounded-2xl border border-line/70 bg-panel/60 p-4 md:p-5">
             <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${priorityStyle[checkpoint.priority].className}`}>
               <span>{priorityStyle[checkpoint.priority].badge}</span>
               <span>{priorityStyle[checkpoint.priority].label}</span>
@@ -27,5 +34,6 @@ export default function AiCheckpointsCard({
         ))}
       </div>
     </Card>
+    </MobileDisclosure>
   );
 }

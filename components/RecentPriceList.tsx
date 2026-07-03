@@ -1,5 +1,6 @@
 import { formatPercent, formatPrice, formatVolume, getPercentColorClass } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo } from "@/lib/market/types";
+import MobileDisclosure from "./MobileDisclosure";
 
 function isSamePrice(a: number, b: number) {
   return Math.abs(a - b) < 0.0001;
@@ -30,13 +31,13 @@ function RecentPriceRow({
   return (
     <div
       title={buildTooltip(price, currency)}
-      className="group relative grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-md bg-surface px-3 py-2 text-sm font-bold transition hover:bg-panel/70"
+      className="group relative grid grid-cols-2 items-center gap-2 rounded-md bg-surface px-3 py-2 text-sm font-bold transition hover:bg-panel/70 md:grid-cols-[1fr_auto_auto] md:gap-3"
     >
       <span className="text-muted">{price.date}</span>
       <span className="text-ink">{formatPrice(price.close, currency)}</span>
-      <span className={getPercentColorClass(price.changePercent)}>{formatPercent(price.changePercent)}</span>
+      <span className={`${getPercentColorClass(price.changePercent)} text-right md:text-left`}>{formatPercent(price.changePercent)}</span>
 
-      <div className="pointer-events-none absolute left-3 top-[calc(100%+0.35rem)] z-20 hidden min-w-56 rounded-md border border-line bg-[#111418] px-3 py-2 text-xs font-bold leading-5 text-ink shadow-glow group-hover:block">
+      <div className="pointer-events-none absolute left-2 right-2 top-[calc(100%+0.35rem)] z-20 hidden rounded-md border border-line bg-[#111418] px-3 py-2 text-xs font-bold leading-5 text-ink shadow-glow group-hover:block md:left-3 md:right-auto md:min-w-56">
         <p className="font-extrabold text-positive">{price.date}</p>
         <p>시가: {formatPrice(price.open, currency)}</p>
         <p>고가: {formatPrice(price.high, currency)}</p>
@@ -46,7 +47,7 @@ function RecentPriceRow({
       </div>
 
       {(isTenDayHigh || isTenDayLow) && (
-        <div className="col-span-3 flex flex-wrap justify-end gap-2 text-xs font-extrabold">
+        <div className="col-span-2 flex flex-wrap justify-end gap-2 text-xs font-extrabold md:col-span-3">
           {isTenDayHigh && (
             <span className="rounded-full border border-positive/30 bg-positive/10 px-2 py-1 text-positive">
               10일 고점 {formatPrice(price.high, currency)}
@@ -76,8 +77,13 @@ export default function RecentPriceList({
 
   return (
     <section className="border-b border-line py-5">
-      <h2 className="mb-4 text-lg font-extrabold">최근 10일 기록</h2>
-      <div className="grid gap-2 lg:grid-cols-2">
+      <h2 className="mb-4 hidden text-lg font-extrabold md:block">최근 10일 기록</h2>
+      <MobileDisclosure
+        title="최근 10일 기록"
+        className="rounded-lg bg-surface p-3 md:contents md:rounded-none md:bg-transparent md:p-0"
+        contentClassName="mt-3 grid gap-2"
+        desktopClassName="grid gap-2 lg:grid-cols-2"
+      >
         {columns.map((column, columnIndex) => (
           <div key={columnIndex === 0 ? "latest" : "previous"} className="space-y-2">
             {column.map((price) => (
@@ -91,7 +97,7 @@ export default function RecentPriceList({
             ))}
           </div>
         ))}
-      </div>
+      </MobileDisclosure>
     </section>
   );
 }

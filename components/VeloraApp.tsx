@@ -119,24 +119,24 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
   }
 
   return (
-    <main className={`theme-${theme} min-h-screen bg-[color:var(--page-bg)] px-4 py-5 text-ink transition-colors sm:px-6 lg:px-8`}>
+    <main className={`theme-${theme} min-h-screen overflow-x-hidden bg-[color:var(--page-bg)] px-3 py-4 text-ink transition-colors md:px-6 md:py-5 lg:px-8`}>
       <button
         type="button"
         onClick={toggleTheme}
-        className="fixed right-4 top-4 z-40 flex h-11 items-center justify-center gap-2 rounded-full border border-line bg-surface/90 px-3 text-sm font-extrabold text-ink shadow-glow backdrop-blur transition hover:bg-panel sm:right-6 sm:top-6"
+        className="fixed right-3 top-3 z-40 flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-line bg-surface/90 px-3 text-sm font-extrabold text-ink shadow-glow backdrop-blur transition hover:bg-panel md:right-6 md:top-6"
         aria-label={theme === "dark" ? "일반모드로 전환" : "다크모드로 전환"}
       >
         {theme === "dark" ? <Sun className="h-4 w-4" aria-hidden="true" /> : <Moon className="h-4 w-4" aria-hidden="true" />}
-        <span className="hidden sm:inline">{theme === "dark" ? "일반모드" : "다크모드"}</span>
+        <span className="hidden md:inline">{theme === "dark" ? "일반모드" : "다크모드"}</span>
       </button>
 
       {!hasSearched ? (
-        <section className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-5xl flex-col items-center justify-center px-2 py-16 text-center">
+        <section className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-5xl flex-col items-center justify-center px-0 py-14 text-center md:min-h-[calc(100vh-2.5rem)] md:px-2 md:py-16">
           <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-line bg-surface shadow-glow">
             <Search className="h-8 w-8 text-positive" aria-hidden="true" />
           </div>
-          <h1 className="text-4xl font-black tracking-normal text-ink sm:text-6xl">VELORA</h1>
-          <p className="mt-4 text-base font-semibold text-muted sm:text-lg">티커 또는 회사명을 검색하여 종목을 분석해보세요.</p>
+          <h1 className="text-4xl font-black tracking-normal text-ink md:text-6xl">VELORA</h1>
+          <p className="mt-4 text-base font-semibold text-muted md:text-lg">티커 또는 회사명을 검색하여 종목을 분석해보세요.</p>
 
           <div className="mt-10 w-full animate-fade-slide-up">
             <SearchBox
@@ -151,12 +151,12 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
         </section>
       ) : (
       <div className="mx-auto max-w-6xl">
-        <header className="sticky top-0 z-20 -mx-4 bg-[color:var(--header-bg)] px-4 py-4 backdrop-blur transition-all sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-          <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center">
+        <header className="sticky top-0 z-20 -mx-3 bg-[color:var(--header-bg)] px-3 py-3 backdrop-blur transition-all md:-mx-6 md:px-6 md:py-4 lg:-mx-8 lg:px-8">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 md:flex-row md:items-center">
             <button
               type="button"
               onClick={goHome}
-              className="inline-flex h-10 shrink-0 items-center justify-center self-start rounded-full border border-line bg-surface/90 px-4 text-sm font-black text-ink shadow-glow transition hover:border-positive/50 hover:bg-positive/10 focus:outline-none focus:ring-2 focus:ring-positive/50 sm:self-auto"
+              className="inline-flex h-11 shrink-0 items-center justify-center self-start rounded-full border border-line bg-surface/90 px-4 text-sm font-black text-ink shadow-glow transition hover:border-positive/50 hover:bg-positive/10 focus:outline-none focus:ring-2 focus:ring-positive/50 md:h-10 md:self-auto"
               aria-label="홈으로 이동"
             >
               ← 홈
@@ -164,13 +164,13 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
             <button
               type="button"
               onClick={goHome}
-              className="flex shrink-0 items-center gap-3 rounded-2xl text-left transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-positive/50"
+              className="flex min-w-0 shrink-0 items-center gap-3 rounded-2xl text-left transition hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-positive/50 md:w-auto"
               aria-label="시작 화면으로 이동"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-surface">
                 <LineChart className="h-5 w-5 text-positive" aria-hidden="true" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-positive">VELORA</p>
                 <h1 className="text-lg font-black text-ink">종목 분석</h1>
               </div>
@@ -187,7 +187,7 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
           </div>
         </header>
 
-        <div className="mt-6 animate-fade-slide-up rounded-lg bg-panel p-4 shadow-glow sm:p-5">
+        <div className="mt-4 animate-fade-slide-up rounded-lg bg-panel p-3 shadow-glow md:mt-6 md:p-5">
           {loading && (
             <>
               <div className="py-8 text-center text-sm font-bold text-muted">데이터를 불러오는 중입니다.</div>

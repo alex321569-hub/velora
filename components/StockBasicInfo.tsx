@@ -42,24 +42,24 @@ export default function StockBasicInfo({
   return (
     <section className="border-b border-line pb-5">
       <h2 className="mb-4 text-lg font-extrabold">기본 정보</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
+      <div className="grid gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-4">
+        <div className="order-2 min-w-0 md:order-none">
           <p className="text-xs font-bold text-muted">회사명</p>
-          <p className="mt-1 text-base font-extrabold text-ink">{basic.name}</p>
+          <p className="mt-1 break-words text-base font-extrabold leading-snug text-ink md:break-normal">{basic.name}</p>
           <p className="text-sm font-semibold text-muted">{basic.koreanName}</p>
         </div>
-        <div>
+        <div className="order-3 min-w-0 md:order-none">
           <p className="text-xs font-bold text-muted">티커 / 거래소 / 국가</p>
           <p className="mt-1 text-base font-extrabold text-ink">
             {basic.symbol} · {basic.exchange}
           </p>
           <p className="text-sm font-semibold text-muted">{basic.country}</p>
         </div>
-        <div>
+        <div className="order-1 min-w-0 rounded-lg border border-line/70 bg-surface p-3 md:order-none md:border-0 md:bg-transparent md:p-0">
           <p className="text-xs font-bold text-muted">현재가</p>
           <p
             className={[
-              "mt-1 inline-flex rounded-md px-2 py-1 text-base font-extrabold text-ink transition-colors",
+              "mt-1 inline-flex rounded-md px-2 py-1 text-2xl font-black text-ink transition-colors md:text-base md:font-extrabold",
               flashClass,
             ].join(" ")}
           >
@@ -67,7 +67,7 @@ export default function StockBasicInfo({
             {formatPrice(basic.currentPrice, basic.currency)}
             {basic.currency === "KRW" ? "원" : ""}
           </p>
-          <span className="ml-2 inline-flex rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-extrabold text-muted">
+          <span className="mt-2 inline-flex rounded-full border border-line bg-surface px-2.5 py-1 text-xs font-extrabold text-muted md:ml-2 md:mt-0">
             {getMarketStateLabel(basic.marketState)}
           </span>
           <p className={`text-sm font-extrabold ${getPercentColorClass(basic.changePercent)}`}>
@@ -82,7 +82,7 @@ export default function StockBasicInfo({
             />
           )}
         </div>
-        <div>
+        <div className="order-4 min-w-0 md:order-none">
           <p className="text-xs font-bold text-muted">데이터 출처</p>
           <p className="mt-1 text-base font-extrabold text-ink">{basic.dataSource}</p>
         </div>

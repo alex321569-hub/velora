@@ -196,10 +196,10 @@ export default function SearchBox({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative w-full min-w-0">
       <div
-        className={`flex items-center gap-3 rounded-full border border-line bg-surface/95 px-5 shadow-glow transition ${
-          variant === "hero" ? "h-16 sm:h-[72px]" : "h-14"
+        className={`flex min-w-0 items-center gap-2 rounded-full border border-line bg-surface/95 px-4 shadow-glow transition md:gap-3 md:px-5 ${
+          variant === "hero" ? "h-14 md:h-[72px]" : "h-12 md:h-14"
         }`}
       >
         <Search className={`${variant === "hero" ? "h-6 w-6" : "h-5 w-5"} shrink-0 text-muted`} aria-hidden="true" />
@@ -212,8 +212,8 @@ export default function SearchBox({
           onFocus={() => setIsOpen(query !== selectedLabel || query.trim().length === 0)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className={`h-full min-w-0 flex-1 bg-transparent font-semibold text-ink outline-none placeholder:font-medium placeholder:text-muted ${
-            variant === "hero" ? "text-lg placeholder:text-base sm:text-xl sm:placeholder:text-lg" : "text-base placeholder:text-sm sm:placeholder:text-base"
+          className={`h-full min-w-0 flex-1 bg-transparent font-semibold text-ink outline-none placeholder:truncate placeholder:font-medium placeholder:text-muted ${
+            variant === "hero" ? "text-base placeholder:text-sm md:text-xl md:placeholder:text-lg" : "text-sm placeholder:text-xs md:text-base md:placeholder:text-base"
           }`}
         />
       </div>
@@ -235,14 +235,14 @@ export default function SearchBox({
             <div
               ref={quickStocksRef}
               key={selectedFilter}
-              className="mx-auto flex max-w-full animate-fade-slide-up justify-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="mx-auto flex max-w-full animate-fade-slide-up justify-start gap-2 overflow-x-auto pb-1 [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden"
             >
               {quickStocks.map((stock) => (
                 <button
                   key={stock.symbol}
                   type="button"
                   onClick={() => selectStock(stock)}
-                  className="min-h-10 shrink-0 rounded-full border border-line bg-panel/80 px-4 text-sm font-extrabold text-ink transition hover:border-positive/50 hover:bg-positive/10"
+                  className="min-h-11 shrink-0 rounded-full border border-line bg-panel/80 px-4 text-sm font-extrabold text-ink transition hover:border-positive/50 hover:bg-positive/10 md:min-h-10"
                   title={`${stock.name} (${stock.symbol})`}
                 >
                   {getQuickLabel(stock)}
@@ -255,7 +255,7 @@ export default function SearchBox({
 
       {isOpen && (
         <div
-          className={`absolute left-0 right-0 z-30 overflow-hidden rounded-2xl border border-line bg-surface shadow-glow ${
+          className={`absolute left-0 right-0 z-30 max-h-[min(28rem,calc(100vh-8rem))] overflow-hidden rounded-2xl border border-line bg-surface shadow-glow md:max-h-none ${
             showFilters ? (variant === "hero" ? "top-44" : "top-40") : variant === "hero" ? "top-20" : "top-16"
           }`}
         >
@@ -271,10 +271,10 @@ export default function SearchBox({
                         type="button"
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => selectStock(stock)}
-                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold text-muted transition hover:bg-panel hover:text-ink"
+                    className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold text-muted transition hover:bg-panel hover:text-ink"
                       >
-                        <span>{stock.koreanName}</span>
-                        <span>{stock.symbol}</span>
+                        <span className="min-w-0 truncate">{stock.koreanName}</span>
+                        <span className="shrink-0">{stock.symbol}</span>
                       </button>
                     ))}
                   </div>
@@ -289,28 +289,28 @@ export default function SearchBox({
                       type="button"
                       onMouseDown={(event) => event.preventDefault()}
                       onClick={() => selectStock(stock)}
-                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold text-muted transition hover:bg-panel hover:text-ink"
+                      className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-sm font-bold text-muted transition hover:bg-panel hover:text-ink"
                     >
-                      <span>{stock.country === "KR" ? stock.koreanName : stock.name}</span>
-                      <span>{stock.symbol}</span>
+                      <span className="min-w-0 truncate">{stock.country === "KR" ? stock.koreanName : stock.name}</span>
+                      <span className="shrink-0">{stock.symbol}</span>
                     </button>
                   ))}
                 </div>
               </section>
             </div>
           ) : results.length > 0 ? (
-            <ul className="max-h-80 overflow-y-auto p-1">
+            <ul className="max-h-[min(24rem,calc(100vh-10rem))] overflow-y-auto p-1 md:max-h-80">
               {results.map((stock, index) => (
                 <li key={stock.symbol}>
                   <button
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => selectStock(stock)}
-                    className={`flex w-full items-start justify-between gap-4 rounded-xl px-4 py-3 text-left transition ${
+                    className={`flex min-h-16 w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left transition md:gap-4 md:px-4 ${
                       index === activeIndex ? "bg-panel text-ink" : "text-muted hover:bg-panel/70 hover:text-ink"
                     }`}
                   >
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block truncate font-bold">{stock.name}</span>
                       <span className="block truncate text-sm font-bold text-ink">{stock.koreanName}</span>
                       <span className="mt-1 block text-xs text-muted">
@@ -320,7 +320,7 @@ export default function SearchBox({
                         {stock.sector} / {stock.industry}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded border border-line px-2 py-1 text-xs font-bold text-ink">
+                    <span className="shrink-0 rounded border border-line px-2 py-1 text-[10px] font-bold text-ink md:text-xs">
                       {stock.assetType.toUpperCase()}
                     </span>
                   </button>

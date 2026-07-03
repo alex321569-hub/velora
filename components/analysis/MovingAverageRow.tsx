@@ -16,10 +16,10 @@ export default function MovingAverageRow({
 }) {
   if (value === null) {
     return (
-      <div title={tooltip} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5">
+      <div title={tooltip} className="grid grid-cols-[3.5rem_1fr] items-center gap-2 rounded-md px-2 py-1.5 md:grid-cols-[3.5rem_1fr_auto] md:gap-3">
         <span className="font-extrabold text-muted">{label}</span>
         <span className="text-ink">데이터 없음</span>
-        <span className="text-muted">-</span>
+        <span className="text-muted md:text-right">-</span>
       </div>
     );
   }
@@ -27,10 +27,10 @@ export default function MovingAverageRow({
   const percent = ((currentPrice - value) / value) * 100;
 
   return (
-    <div title={tooltip} className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 rounded-md px-2 py-1.5 hover:bg-panel/50">
+    <div title={tooltip} className="grid grid-cols-[3.5rem_1fr] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-panel/50 md:grid-cols-[3.5rem_1fr_auto] md:gap-3">
       <span className="font-extrabold text-muted">{label}</span>
       <span className="text-ink">{formatPrice(value, currency)}</span>
-      <span className={`font-extrabold ${getPercentColorClass(percent)}`}>{formatPercent(percent)}</span>
+      <span className={`col-start-2 font-extrabold md:col-start-auto md:text-right ${getPercentColorClass(percent)}`}>{formatPercent(percent)}</span>
     </div>
   );
 }

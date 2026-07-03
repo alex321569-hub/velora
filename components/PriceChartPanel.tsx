@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import MiniPriceChart from "@/components/MiniPriceChart";
+import MobileDisclosure from "@/components/MobileDisclosure";
 import TradingViewChart from "@/components/TradingViewChart";
 import { toTradingViewSymbol } from "@/lib/market/toTradingViewSymbol";
 import type { RecentPricePoint, StockBasicInfo } from "@/lib/market/types";
@@ -63,8 +64,14 @@ export default function PriceChartPanel({
 
   return (
     <section className="border-b border-line py-5">
-      <div className="relative min-w-0 overflow-hidden rounded-lg bg-surface p-4 sm:p-5">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <MobileDisclosure
+        title="가격 흐름"
+        className="rounded-lg bg-surface p-3"
+        contentClassName="mt-3"
+        desktopClassName="contents"
+      >
+      <div className="relative min-w-0 overflow-hidden rounded-lg bg-surface p-3 md:p-5">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-extrabold">{isTradingViewMode ? "TradingView 상세 차트" : "최근 가격 흐름"}</h2>
             <p className="mt-1 text-sm font-bold text-muted">
@@ -77,7 +84,7 @@ export default function PriceChartPanel({
             aria-describedby={showUnsupportedPopup ? "tradingview-policy-popup" : undefined}
             title={!isTradingViewMode && isKoreanTradingViewSymbol ? KOREA_TRADINGVIEW_POLICY_MESSAGE : undefined}
             onClick={toggleChartMode}
-            className="h-11 shrink-0 rounded-full border border-line bg-panel/80 px-5 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10 focus:outline-none focus:ring-2 focus:ring-positive/50"
+            className="h-11 w-full shrink-0 rounded-full border border-line bg-panel/80 px-5 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10 focus:outline-none focus:ring-2 focus:ring-positive/50 md:w-auto"
           >
             {isTradingViewMode ? "미니 차트 보기" : "상세 차트 보기"}
           </button>
@@ -87,7 +94,7 @@ export default function PriceChartPanel({
           <div
             id="tradingview-policy-popup"
             role="alert"
-            className="absolute right-4 top-16 z-20 max-w-sm rounded-lg border border-line bg-panel px-4 py-3 text-sm font-bold leading-5 text-ink shadow-glow sm:right-5"
+            className="absolute left-3 right-3 top-24 z-20 rounded-lg border border-line bg-panel px-4 py-3 text-sm font-bold leading-5 text-ink shadow-glow md:left-auto md:right-5 md:top-16 md:max-w-sm"
           >
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted/20 text-xs text-muted">!</span>
@@ -111,6 +118,7 @@ export default function PriceChartPanel({
           <MiniPriceChart prices={prices} currency={currency} currentPrice={currentPrice} isLoading={isLoading} error={error} embedded />
         )}
       </div>
+      </MobileDisclosure>
     </section>
   );
 }
