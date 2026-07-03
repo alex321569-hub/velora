@@ -142,12 +142,13 @@ export default function SearchBox({
 
   function selectDirectTicker(value: string) {
     const symbol = normalizeSymbolInput(value);
+    const isKoreanTicker = /^[0-9]{6}$/.test(symbol);
     const directStock: StockAlias = {
       symbol,
       name: symbol,
       koreanName: symbol,
-      exchange: "NASDAQ",
-      country: "US",
+      exchange: isKoreanTicker ? "KRX" : "NASDAQ",
+      country: isKoreanTicker ? "KR" : "US",
       assetType: "stock",
       sector: "Other",
       industry: "Other",

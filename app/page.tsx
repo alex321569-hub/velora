@@ -28,6 +28,14 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
     onUpdate: handleLiveUpdate,
   });
 
+  function getRouteSymbol(stockAlias: StockAlias) {
+    if (stockAlias.country === "KR" && !/\.(KS|KQ)$/i.test(stockAlias.symbol)) {
+      return `${stockAlias.symbol}.KS`;
+    }
+
+    return stockAlias.symbol;
+  }
+
   const loadStock = useCallback(async (symbol: string) => {
     setLoading(true);
     setError("");
@@ -49,7 +57,7 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
 
   function handleSelect(stockAlias: StockAlias) {
     window.sessionStorage.setItem("velora-home-scroll-y", String(window.scrollY));
-    router.push(`/stock/${encodeURIComponent(stockAlias.symbol)}`);
+    router.push(`/stock/${encodeURIComponent(getRouteSymbol(stockAlias))}`);
   }
 
   function goHome() {
@@ -131,6 +139,14 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
       <div className="mx-auto max-w-6xl">
         <header className="sticky top-0 z-20 -mx-4 bg-[color:var(--header-bg)] px-4 py-4 backdrop-blur transition-all sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={goHome}
+              className="inline-flex h-10 shrink-0 items-center justify-center self-start rounded-full border border-line bg-surface/90 px-4 text-sm font-black text-ink shadow-glow transition hover:border-positive/50 hover:bg-positive/10 focus:outline-none focus:ring-2 focus:ring-positive/50 sm:self-auto"
+              aria-label="홈으로 이동"
+            >
+              ← 홈
+            </button>
             <button
               type="button"
               onClick={goHome}
