@@ -172,6 +172,7 @@ export interface StockRecord {
 export interface StockAnalysisResponse {
   basic: StockBasicInfo;
   recentPrices: RecentPricePoint[];
+  chartPrices: RecentPricePoint[];
   indicators: StockIndicators;
 }
 

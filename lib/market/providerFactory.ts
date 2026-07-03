@@ -153,9 +153,12 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   const basic = buildBasicInfo(profile, effectiveQuote, currentPrice, previousClose);
 
   if (!validation.isValid || closes.length === 0 || currentPrice <= 0) {
+    const fallbackRecentPrices = sortedPrices.slice(-10).reverse().map((price) => ({ ...price, changePercent: 0 }));
+
     return {
       basic,
-      recentPrices: sortedPrices.slice(-10).reverse().map((price) => ({ ...price, changePercent: 0 })),
+      recentPrices: fallbackRecentPrices,
+      chartPrices: sortedPrices.slice(-30).map((price) => ({ ...price, changePercent: 0 })),
       indicators: {
         calculationError: "데이터 없음",
         week52High: 0,
@@ -201,6 +204,11 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   const macd = calculateMACD(closes);
   const supportResistance = calculateSupportResistance(sortedPrices, currentPrice);
   const recentPrices = sortedPrices.slice(-10).reverse().map((price) => {
+    const originalIndex = sortedPrices.findIndex((candidate) => candidate.date === price.date);
+    const previous = sortedPrices[Math.max(originalIndex - 1, 0)]?.close ?? price.close;
+    return { ...price, changePercent: calculatePercentChange(price.close, previous) };
+  });
+  const chartPrices = sortedPrices.slice(-30).map((price) => {
     const originalIndex = sortedPrices.findIndex((candidate) => candidate.date === price.date);
     const previous = sortedPrices[Math.max(originalIndex - 1, 0)]?.close ?? price.close;
     return { ...price, changePercent: calculatePercentChange(price.close, previous) };
@@ -288,6 +296,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   return {
     basic,
     recentPrices,
+    chartPrices,
     indicators: {
       week52High,
       week52Low,

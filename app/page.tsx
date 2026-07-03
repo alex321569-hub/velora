@@ -4,6 +4,7 @@ import { AlertTriangle, LineChart, Moon, Search, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import AnalysisCards from "@/components/AnalysisCards";
+import MiniPriceChart from "@/components/MiniPriceChart";
 import RecentPriceList from "@/components/RecentPriceList";
 import SearchBox from "@/components/SearchBox";
 import StockBasicInfo from "@/components/StockBasicInfo";
@@ -186,6 +187,11 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
                   secondsUntilUpdate: liveQuote.secondsUntilUpdate,
                   refreshError: liveQuote.refreshError,
                 }}
+              />
+              <MiniPriceChart
+                prices={stock.chartPrices}
+                currency={stock.basic.currency}
+                currentPrice={stock.basic.currentPrice}
               />
               <RecentPriceList prices={stock.recentPrices} currency={stock.basic.currency} />
               <AnalysisCards
