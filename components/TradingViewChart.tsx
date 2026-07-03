@@ -21,6 +21,31 @@ function makeSafeId(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
 
+function isKoreanTradingViewSymbol(tvSymbol: string | null) {
+  return tvSymbol?.startsWith("KRX:") ?? false;
+}
+
+function normalizeTradingViewSymbol(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function extractIframeSymbol(src: string) {
+  try {
+    const url = new URL(src);
+    return url.searchParams.get("symbol");
+  } catch {
+    const match = src.match(/[?&]symbol=([^&]+)/i);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+}
+
+function iframeHasDifferentSymbol(iframe: HTMLIFrameElement, expectedSymbol: string) {
+  const iframeSymbol = extractIframeSymbol(iframe.src);
+  if (!iframeSymbol) return false;
+
+  return normalizeTradingViewSymbol(iframeSymbol) !== normalizeTradingViewSymbol(expectedSymbol);
+}
+
 function TradingViewSkeleton() {
   return (
     <div className="h-[22rem] animate-pulse rounded-lg border border-line bg-panel/70 sm:h-[28rem] lg:h-[34rem]" aria-hidden="true">
@@ -39,6 +64,37 @@ function TradingViewSkeleton() {
   );
 }
 
+function UnsupportedKoreanChart({ onBackToMini }: { onBackToMini: () => void }) {
+  return (
+    <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-line bg-panel/60 px-4 text-center text-sm font-bold text-muted">
+      <p className="max-w-lg leading-6">이 종목은 TradingView의 외부 위젯 데이터 정책으로 상세 차트를 표시할 수 없습니다.</p>
+      <p className="text-xs leading-5 text-muted">기본 미니 차트는 Velora 가격 데이터 기준으로 계속 사용할 수 있습니다.</p>
+      <button
+        type="button"
+        onClick={onBackToMini}
+        className="h-10 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
+      >
+        미니 차트로 돌아가기
+      </button>
+    </div>
+  );
+}
+
+function UnsupportedSymbolChart({ onBackToMini }: { onBackToMini: () => void }) {
+  return (
+    <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-line bg-panel/60 px-4 text-center text-sm font-bold text-muted">
+      <p>이 종목은 TradingView 심볼로 변환할 수 없어 상세 차트를 표시하지 않습니다.</p>
+      <button
+        type="button"
+        onClick={onBackToMini}
+        className="h-10 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
+      >
+        미니 차트로 돌아가기
+      </button>
+    </div>
+  );
+}
+
 export default function TradingViewChart({
   symbol,
   onBackToMini,
@@ -51,10 +107,11 @@ export default function TradingViewChart({
   const instanceIdRef = useRef(`tv-${Math.random().toString(36).slice(2)}`);
   const containerRef = useRef<HTMLDivElement>(null);
   const tvSymbol = useMemo(() => toTradingViewSymbol(symbol), [symbol]);
+  const isUnsupportedKoreanSymbol = isKoreanTradingViewSymbol(tvSymbol);
   const containerId = useMemo(() => makeSafeId(`${instanceIdRef.current}-${tvSymbol ?? "unsupported"}`), [tvSymbol]);
 
   useEffect(() => {
-    if (!tvSymbol) {
+    if (!tvSymbol || isUnsupportedKoreanSymbol) {
       if (containerRef.current) {
         containerRef.current.innerHTML = "";
       }
@@ -62,6 +119,7 @@ export default function TradingViewChart({
       return undefined;
     }
 
+    const expectedSymbol = tvSymbol;
     let cancelled = false;
     let timeoutId: number | null = null;
     let observer: MutationObserver | null = null;
@@ -87,18 +145,31 @@ export default function TradingViewChart({
       }
     }
 
-    function markReadyWhenIframeAppears() {
+    function failAndHideWidget() {
+      cleanupWidget();
+      if (!cancelled) {
+        setLoadState("error");
+      }
+    }
+
+    function markReadyWhenExpectedIframeAppears() {
       const container = containerRef.current;
       if (!container) return;
 
       observer = new MutationObserver(() => {
-        if (container.querySelector("iframe")) {
-          if (timeoutId !== null) {
-            window.clearTimeout(timeoutId);
-          }
-          setLoadState("ready");
-          observer?.disconnect();
+        const iframe = container.querySelector("iframe");
+        if (!iframe) return;
+
+        if (iframeHasDifferentSymbol(iframe, expectedSymbol)) {
+          failAndHideWidget();
+          return;
         }
+
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+        setLoadState("ready");
+        observer?.disconnect();
       });
 
       observer.observe(container, { childList: true, subtree: true });
@@ -109,12 +180,12 @@ export default function TradingViewChart({
       if (cancelled || !container || !window.TradingView?.widget) return;
 
       container.innerHTML = "";
-      markReadyWhenIframeAppears();
+      markReadyWhenExpectedIframeAppears();
 
       try {
         new window.TradingView.widget({
           autosize: true,
-          symbol: tvSymbol,
+          symbol: expectedSymbol,
           interval: "D",
           timezone: "Asia/Seoul",
           theme: "dark",
@@ -128,7 +199,7 @@ export default function TradingViewChart({
           container_id: containerId,
         });
       } catch {
-        setLoadState("error");
+        failAndHideWidget();
       }
     }
 
@@ -139,7 +210,7 @@ export default function TradingViewChart({
 
     timeoutId = window.setTimeout(() => {
       if (!cancelled) {
-        setLoadState("error");
+        failAndHideWidget();
       }
     }, WIDGET_TIMEOUT_MS);
 
@@ -149,26 +220,19 @@ export default function TradingViewChart({
       cancelled = true;
       cleanupWidget();
     };
-  }, [containerId, retryKey, tvSymbol]);
+  }, [containerId, isUnsupportedKoreanSymbol, retryKey, tvSymbol]);
 
   function retry() {
     setLoadState("loading");
     setRetryKey((value) => value + 1);
   }
 
+  if (isUnsupportedKoreanSymbol) {
+    return <UnsupportedKoreanChart onBackToMini={onBackToMini} />;
+  }
+
   if (!tvSymbol) {
-    return (
-      <div className="flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border border-line bg-panel/60 px-4 text-center text-sm font-bold text-muted">
-        <p>이 종목은 TradingView 심볼로 변환할 수 없어 상세 차트를 표시하지 않습니다.</p>
-        <button
-          type="button"
-          onClick={onBackToMini}
-          className="h-10 rounded-full border border-line bg-surface px-4 text-sm font-black text-ink transition hover:border-positive/50 hover:bg-positive/10"
-        >
-          미니 차트로 돌아가기
-        </button>
-      </div>
-    );
+    return <UnsupportedSymbolChart onBackToMini={onBackToMini} />;
   }
 
   return (
@@ -187,7 +251,8 @@ export default function TradingViewChart({
         >
           <p className="text-sm font-extrabold text-negative">TradingView 차트를 불러오지 못했습니다.</p>
           <p className="max-w-lg text-xs font-bold leading-5 text-muted">
-            네트워크 차단, 외부 스크립트 제한, 또는 TradingView 위젯 응답 지연이 원인일 수 있습니다. 기본 Mini Price Chart는 계속 사용할 수 있습니다.
+            네트워크 차단, 외부 스크립트 제한, TradingView 응답 지연, 또는 요청 심볼과 다른 기본 차트 응답이 원인일 수 있습니다.
+            기본 미니 차트는 계속 사용할 수 있습니다.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
             <button

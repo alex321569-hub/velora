@@ -48,6 +48,18 @@ function getPriceStats(prices: RecentPricePoint[], currentPrice: number, range: 
   };
 }
 
+function getPaddedPriceDomain(data: ChartPoint[]) {
+  const closes = data.map((point) => point.close).filter(Number.isFinite);
+  if (closes.length === 0) return ["dataMin", "dataMax"] as const;
+
+  const min = Math.min(...closes);
+  const max = Math.max(...closes);
+  const range = Math.max(max - min, Math.abs(max) * 0.01, 1);
+  const padding = range * 0.08;
+
+  return [Math.max(0, min - padding), max + padding] as [number, number];
+}
+
 function MiniTooltip({
   active,
   payload,
@@ -96,7 +108,7 @@ export function MiniPriceChartSkeleton({ embedded = false }: { embedded?: boolea
           <div key={index} className="h-14 w-full animate-pulse rounded-lg bg-panel" />
         ))}
       </div>
-      <div className="h-44 animate-pulse rounded-lg bg-panel/70 sm:h-56" />
+      <div className="h-48 animate-pulse rounded-lg bg-panel/70 pb-5 sm:h-60" />
     </>
   );
 
@@ -137,6 +149,7 @@ export default function MiniPriceChart({
   );
   const returnPercent = getReturnPercent(rangePrices, currentPrice);
   const { high, low } = getPriceStats(rangePrices, currentPrice, range);
+  const priceDomain = useMemo(() => getPaddedPriceDomain(chartData), [chartData]);
   const lineColor = returnPercent >= 0 ? "#34d399" : "#fb7185";
 
   if (isLoading) {
@@ -178,13 +191,13 @@ export default function MiniPriceChart({
       </div>
 
       {chartData.length < 2 ? (
-        <div className="flex h-44 items-center justify-center rounded-lg border border-line bg-panel/50 px-4 text-center text-sm font-bold text-muted sm:h-56">
+        <div className="flex h-48 items-center justify-center rounded-lg border border-line bg-panel/50 px-4 pb-5 text-center text-sm font-bold text-muted sm:h-60">
           차트 데이터 없음
         </div>
       ) : (
-        <div className="h-44 min-w-0 sm:h-56">
+        <div className="h-48 min-w-0 pb-5 sm:h-60">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <LineChart data={chartData} margin={{ top: 10, right: 8, bottom: 18, left: 0 }}>
               <CartesianGrid stroke="rgba(167, 173, 183, 0.14)" vertical={false} />
               <XAxis
                 dataKey="label"
@@ -196,7 +209,7 @@ export default function MiniPriceChart({
               />
               <YAxis
                 width={currency === "KRW" ? 58 : 48}
-                domain={["dataMin", "dataMax"]}
+                domain={priceDomain}
                 tickFormatter={(value) => formatPrice(Number(value), currency)}
                 tick={{ fill: "var(--muted)", fontSize: 11, fontWeight: 700 }}
                 tickLine={false}
