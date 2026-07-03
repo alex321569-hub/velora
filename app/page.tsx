@@ -188,7 +188,12 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
         </header>
 
         <div className="mt-6 animate-fade-slide-up rounded-lg bg-panel p-4 shadow-glow sm:p-5">
-          {loading && <div className="py-20 text-center text-sm font-bold text-muted">데이터를 불러오는 중입니다.</div>}
+          {loading && (
+            <>
+              <div className="py-8 text-center text-sm font-bold text-muted">데이터를 불러오는 중입니다.</div>
+              <MiniPriceChart prices={[]} currency="USD" currentPrice={0} isLoading />
+            </>
+          )}
           {error && <div className="py-20 text-center text-sm font-bold text-negative">{error}</div>}
           {!loading && !error && stock && (
             <>
@@ -205,6 +210,7 @@ export function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
                 prices={stock.chartPrices}
                 currency={stock.basic.currency}
                 currentPrice={stock.basic.currentPrice}
+                error={liveQuote.refreshError}
               />
               <RecentPriceList prices={stock.recentPrices} currency={stock.basic.currency} />
               <AnalysisCards
