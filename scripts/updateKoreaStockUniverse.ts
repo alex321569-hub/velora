@@ -1,72 +1,43 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-type Row = Record<string, string>;
+type Exchange = "KOSPI" | "KOSDAQ";
 
 interface KoreaStockUniverseItem {
   symbol: string;
   name: string;
   koreanName: string;
-  exchange: "KOSPI" | "KOSDAQ";
+  exchange: Exchange;
   country: "KR";
-  assetType: "stock" | "etf";
+  assetType: "stock";
   sector: string;
   industry: string;
   aliases: string[];
 }
 
-const inputPath = process.argv[2] ?? process.env.KRX_LISTING_CSV;
 const outputPath = path.join(process.cwd(), "lib", "market", "generated", "koreaStockUniverse.json");
+const kindUrl = "https://kind.krx.co.kr/corpgeneral/corpList.do?method=download";
 
-if (!inputPath) {
-  throw new Error("Usage: pnpm update:korea-stock-universe <krx-listing.csv>");
+const marketDownloads: Array<{ marketType: string; exchange: Exchange }> = [
+  { marketType: "stockMkt", exchange: "KOSPI" },
+  { marketType: "kosdaqMkt", exchange: "KOSDAQ" },
+];
+
+function stripTags(value: string) {
+  return value
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .trim();
 }
 
-function parseCsvLine(line: string) {
-  const values: string[] = [];
-  let current = "";
-  let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-
-    if (char === "\"" && quoted && next === "\"") {
-      current += "\"";
-      index += 1;
-    } else if (char === "\"") {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      values.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-
-  values.push(current.trim());
-  return values;
-}
-
-function parseCsv(content: string): Row[] {
-  const lines = content.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
-  const headers = parseCsvLine(lines[0]).map((header) => header.trim());
-
-  return lines.slice(1).map((line) => {
-    const values = parseCsvLine(line);
-    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]));
-  });
-}
-
-function pick(row: Row, keys: string[]) {
-  return keys.map((key) => row[key]).find((value) => value && value.trim())?.trim() ?? "";
-}
-
-function normalizeExchange(value: string): "KOSPI" | "KOSDAQ" | null {
-  const upper = value.toUpperCase();
-  if (upper.includes("KOSDAQ") || upper.includes("코스닥")) return "KOSDAQ";
-  if (upper.includes("KOSPI") || upper.includes("유가") || upper.includes("코스피")) return "KOSPI";
-  return null;
+function parseHtmlTable(html: string): string[][] {
+  return [...html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
+    .map((row) => [...row[1].matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((cell) => stripTags(cell[1])))
+    .filter((cells) => cells.length > 0);
 }
 
 function normalizeSymbol(value: string) {
@@ -74,34 +45,91 @@ function normalizeSymbol(value: string) {
   return digits.padStart(6, "0").slice(-6);
 }
 
-const rows = parseCsv(readFileSync(inputPath, "utf8"));
-const items = rows
-  .map((row): KoreaStockUniverseItem | null => {
-    const rawSymbol = pick(row, ["symbol", "Symbol", "종목코드", "단축코드", "Code", "code"]);
-    const koreanName = pick(row, ["koreanName", "Korean Name", "한글 종목명", "종목명", "Name", "name"]);
-    const exchange = normalizeExchange(pick(row, ["exchange", "Exchange", "시장구분", "시장", "Market", "market"]));
-    const sector = pick(row, ["sector", "Sector", "업종", "industry", "Industry"]) || "Other";
-    const industry = pick(row, ["industry", "Industry", "업종명", "업종"]) || sector;
+function createAliases(symbol: string, koreanName: string, exchange: Exchange) {
+  const suffix = exchange === "KOSDAQ" ? "KQ" : "KS";
+  const aliases = [symbol, `${symbol}.${suffix}`, koreanName, koreanName.replace(/\s+/g, "")];
+  return Array.from(new Set(aliases.filter(Boolean)));
+}
 
-    if (!rawSymbol || !koreanName || !exchange) return null;
+function rowsToItems(rows: string[][], exchange: Exchange): KoreaStockUniverseItem[] {
+  const [headers, ...body] = rows;
+  const nameIndex = headers.indexOf("회사명");
+  const symbolIndex = headers.indexOf("종목코드");
+  const industryIndex = headers.indexOf("업종");
 
-    const symbol = normalizeSymbol(rawSymbol);
-    const suffix = exchange === "KOSDAQ" ? "KQ" : "KS";
+  if (nameIndex < 0 || symbolIndex < 0) {
+    throw new Error(`Unexpected KRX table format for ${exchange}`);
+  }
 
-    return {
-      symbol,
-      name: koreanName,
-      koreanName,
-      exchange,
-      country: "KR",
-      assetType: "stock",
-      sector,
-      industry,
-      aliases: [symbol, `${symbol}.${suffix}`, koreanName],
-    };
-  })
-  .filter((item): item is KoreaStockUniverseItem => item !== null)
-  .sort((a, b) => a.symbol.localeCompare(b.symbol));
+  return body
+    .map((cells): KoreaStockUniverseItem | null => {
+      const koreanName = cells[nameIndex]?.trim();
+      const symbol = normalizeSymbol(cells[symbolIndex] ?? "");
+      const industry = cells[industryIndex]?.trim() || "Other";
 
-writeFileSync(outputPath, `${JSON.stringify(items, null, 2)}\n`, "utf8");
-console.log(`Wrote ${items.length} Korean listings to ${outputPath}`);
+      if (!koreanName || !/^[0-9]{6}$/.test(symbol)) {
+        return null;
+      }
+
+      return {
+        symbol,
+        name: koreanName,
+        koreanName,
+        exchange,
+        country: "KR",
+        assetType: "stock",
+        sector: industry,
+        industry,
+        aliases: createAliases(symbol, koreanName, exchange),
+      };
+    })
+    .filter((item): item is KoreaStockUniverseItem => item !== null);
+}
+
+async function fetchKrxItems(marketType: string, exchange: Exchange) {
+  const url = `${kindUrl}&marketType=${marketType}`;
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/vnd.ms-excel,text/html,*/*",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`KRX KIND download failed for ${exchange}: ${response.status}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  const html = new TextDecoder("euc-kr").decode(buffer);
+  return rowsToItems(parseHtmlTable(html), exchange);
+}
+
+function readLocalJson(inputPath: string): KoreaStockUniverseItem[] {
+  const items = JSON.parse(readFileSync(inputPath, "utf8")) as KoreaStockUniverseItem[];
+  return items.map((item) => ({
+    ...item,
+    symbol: normalizeSymbol(item.symbol),
+    aliases: createAliases(normalizeSymbol(item.symbol), item.koreanName, item.exchange),
+  }));
+}
+
+async function main() {
+  const inputPath = process.argv[2] ?? process.env.KRX_LISTING_JSON;
+  const rawItems = inputPath
+    ? readLocalJson(inputPath)
+    : (await Promise.all(marketDownloads.map((market) => fetchKrxItems(market.marketType, market.exchange)))).flat();
+
+  const dedupedItems = Array.from(new Map(rawItems.map((item) => [`${item.symbol}:${item.exchange}`, item])).values()).sort((a, b) =>
+    a.symbol.localeCompare(b.symbol),
+  );
+
+  writeFileSync(outputPath, `${JSON.stringify(dedupedItems, null, 2)}\n`, "utf8");
+
+  const kospiCount = dedupedItems.filter((item) => item.exchange === "KOSPI").length;
+  const kosdaqCount = dedupedItems.filter((item) => item.exchange === "KOSDAQ").length;
+  console.log(`Wrote ${dedupedItems.length} Korean listings to ${outputPath}`);
+  console.log(`KOSPI: ${kospiCount}`);
+  console.log(`KOSDAQ: ${kosdaqCount}`);
+}
+
+void main();
