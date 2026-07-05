@@ -1,5 +1,5 @@
-import generatedStockUniverse from "./generated/stockUniverse.json";
-import generatedKoreaStockUniverse from "./generated/koreaStockUniverse.json";
+import generatedStockUniverse from "./generated/stockUniverse.json" with { type: "json" };
+import generatedKoreaStockUniverse from "./generated/koreaStockUniverse.json" with { type: "json" };
 import type { StockUniverseItem } from "./types";
 
 type GeneratedStockUniverseItem = {

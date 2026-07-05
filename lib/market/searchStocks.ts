@@ -1,3 +1,4 @@
+import { normalizeKoreanCode } from "./symbolUtils";
 import { stockUniverse } from "./stockUniverse";
 import type { SearchFilter, StockUniverseItem } from "./types";
 
@@ -54,7 +55,7 @@ export function normalizeSymbolInput(value: string): string {
 
 export function isTickerLikeInput(value: string): boolean {
   const trimmed = value.trim();
-  return /^[A-Za-z][A-Za-z0-9.-]{0,11}$/.test(trimmed) || /^[0-9]{6}(\.(KS|KQ))?$/i.test(trimmed);
+  return /^[A-Za-z][A-Za-z0-9.-]{0,11}$/.test(trimmed) || /^A?[0-9]{1,6}(\.(KS|KQ))?$/i.test(trimmed);
 }
 
 function createSearchIndex(): SearchIndexItem[] {
@@ -130,6 +131,9 @@ function getSearchScore(item: SearchIndexItem, query: string): number {
   const boost = item.stock.searchBoost ?? 0;
 
   if (item.symbol === normalizedQuery) return 10000 + boost;
+  if (item.koreanName === normalizedQuery) return 9500 + boost;
+  if (item.name === normalizedQuery) return 9000 + boost;
+  if (item.aliases.some((alias) => alias === normalizedQuery)) return 8800 + boost;
   if (item.symbol.startsWith(normalizedQuery)) return 8500 + boost - (item.symbol.length - normalizedQuery.length);
 
   const nameTargets = [item.koreanName, item.name, ...item.aliases];
@@ -142,7 +146,6 @@ function getSearchScore(item: SearchIndexItem, query: string): number {
   }, 0);
 
   if (partialScore > 0) return partialScore + boost;
-  if (item.aliases.some((alias) => alias === normalizedQuery)) return 6500 + boost;
 
   if (normalizedQuery.length >= 2) {
     const fuzzyTargets = [item.symbol, item.koreanName, item.name, ...item.aliases].slice(0, 8);
@@ -169,10 +172,8 @@ function rankStocks(query: string, filter: SearchFilter = "all"): RankedStock[] 
 }
 
 function createKoreanDirectTicker(query: string): StockUniverseItem | null {
-  const normalizedSymbol = normalizeSymbolInput(query);
-  if (!/^[0-9]{6}$/.test(normalizedSymbol)) {
-    return null;
-  }
+  const normalizedSymbol = normalizeKoreanCode(query);
+  if (!normalizedSymbol) return null;
 
   return {
     symbol: normalizedSymbol,

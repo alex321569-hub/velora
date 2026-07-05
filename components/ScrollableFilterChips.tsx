@@ -74,7 +74,7 @@ export default function ScrollableFilterChips({ filters, selectedFilter, onSelec
         ref={scrollRef}
         className="overflow-x-auto scroll-smooth px-14 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div className="flex w-max min-w-full justify-center gap-2">
+        <div className="flex w-max min-w-full justify-start gap-2 md:justify-center">
           {filters.map((filter) => {
             const active = selectedFilter === filter;
 

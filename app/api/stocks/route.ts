@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { buildAiOpinion } from "@/lib/analysis/aiAnalysis";
 import { getMarketProvider, getStockAnalysis } from "@/lib/market/providerFactory";
 import { getBestMatch } from "@/lib/market/searchStocks";
+import { normalizeMarketSymbol } from "@/lib/market/symbolUtils";
 import type { SearchFilter } from "@/lib/market/types";
 
 export async function GET(request: Request) {
@@ -15,7 +17,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       results,
       bestMatch: getBestMatch(query, filter) ?? results[0] ?? null,
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   }
 
   if (!symbol) {
@@ -24,8 +26,39 @@ export async function GET(request: Request) {
 
   const stock = await getStockAnalysis(symbol, provider);
   if (!stock) {
-    return NextResponse.json({ error: "stock not found" }, { status: 404 });
+    const matchedStock = getBestMatch(symbol);
+    const resolved = normalizeMarketSymbol(symbol, matchedStock ?? undefined);
+    const payload = {
+      symbol,
+      resolvedSymbol: resolved.yahooSymbol,
+      status: "error",
+      errorCode: "STOCK_DATA_NOT_FOUND",
+      message: "종목 데이터를 찾을 수 없습니다.",
+      receivedCandles: 0,
+      validCloses: 0,
+    };
+
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[api/stocks] stock data not found", payload);
+    }
+
+    return NextResponse.json(payload, { status: 404, headers: { "Cache-Control": "no-store" } });
   }
 
-  return NextResponse.json(stock);
+  const opinion = stock.indicators.calculationError
+    ? null
+    : buildAiOpinion({
+        indicators: stock.indicators,
+        currentPrice: stock.basic.currentPrice,
+        currency: stock.basic.currency,
+        recentPrices: stock.recentPrices,
+      });
+
+  return NextResponse.json(
+    {
+      ...stock,
+      aiScore: opinion?.aiScore,
+    },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

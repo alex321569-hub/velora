@@ -9,7 +9,11 @@ import RecentPriceList from "@/components/RecentPriceList";
 import SearchBox from "@/components/SearchBox";
 import StockBasicInfo from "@/components/StockBasicInfo";
 import { useLiveQuote } from "@/hooks/useLiveQuote";
+import { baseSearchFilters, sectorSearchFilters } from "@/lib/market/searchStocks";
+import { normalizeMarketSymbol } from "@/lib/market/symbolUtils";
 import type { SearchFilter, StockAlias, StockAnalysisResponse } from "@/lib/market/types";
+
+const validSearchFilters = new Set<SearchFilter>([...baseSearchFilters, ...sectorSearchFilters].map((filter) => filter.id));
 
 function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
   const router = useRouter();
@@ -30,24 +34,7 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
   });
 
   function getRouteSymbol(stockAlias: StockAlias) {
-    if (stockAlias.country === "KR" && !/\.(KS|KQ)$/i.test(stockAlias.symbol)) {
-      const exchange = stockAlias.exchange.toUpperCase();
-      if (exchange.includes("KOSPI/KOSDAQ")) {
-        return stockAlias.symbol;
-      }
-
-      if (exchange.includes("KOSDAQ")) {
-        return `${stockAlias.symbol}.KQ`;
-      }
-
-      if (exchange.includes("KOSPI")) {
-        return `${stockAlias.symbol}.KS`;
-      }
-
-      return `${stockAlias.symbol}.KS`;
-    }
-
-    return stockAlias.symbol;
+    return normalizeMarketSymbol(stockAlias.symbol, stockAlias).yahooSymbol;
   }
 
   const loadStock = useCallback(async (symbol: string) => {
@@ -85,8 +72,10 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
     }
 
     const savedFilter = window.localStorage.getItem("velora-selected-filter") as SearchFilter | null;
-    if (savedFilter) {
+    if (savedFilter && validSearchFilters.has(savedFilter)) {
       setSelectedFilter(savedFilter);
+    } else if (savedFilter) {
+      window.localStorage.setItem("velora-selected-filter", "all");
     }
   }, []);
 
@@ -131,7 +120,9 @@ function VeloraApp({ routeSymbol }: { routeSymbol?: string }) {
       </button>
 
       {!hasSearched ? (
-        <section className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-5xl flex-col items-center justify-center px-0 py-14 text-center md:min-h-[calc(100vh-2.5rem)] md:px-2 md:py-16">
+        <section
+          className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-5xl flex-col items-center justify-center px-0 py-14 text-center md:min-h-[calc(100vh-2.5rem)] md:px-2 md:py-16"
+        >
           <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-line bg-surface shadow-glow">
             <Search className="h-8 w-8 text-positive" aria-hidden="true" />
           </div>

@@ -1,5 +1,6 @@
 import type { StockMarketProvider } from "./marketProvider";
 import { getAutocompleteResults, isTickerLikeInput, normalizeSymbolInput } from "../searchStocks";
+import { getKoreanMarketSuffix, normalizeKoreanCode, normalizeMarketSymbol } from "../symbolUtils";
 import { stockUniverse } from "../stockUniverse";
 import type { CompanyProfile, HistoricalPrice, Quote, SearchFilter, ShortInterest, StockUniverseItem } from "../types";
 
@@ -82,44 +83,24 @@ const koreanYahooSymbolCache = new Map<string, Promise<string | null>>();
 
 function getUniverseItem(symbol: string) {
   const normalizedSymbol = normalizeSymbolInput(symbol);
-  return stockUniverse.find((stock) => normalizeSymbolInput(stock.symbol) === normalizedSymbol) ?? null;
+  const normalizedKoreanCode = normalizeKoreanCode(symbol);
+
+  return (
+    stockUniverse.find((stock) => normalizeSymbolInput(stock.symbol) === normalizedSymbol) ??
+    (normalizedKoreanCode
+      ? stockUniverse.find((stock) => stock.country === "KR" && normalizeKoreanCode(stock.symbol) === normalizedKoreanCode)
+      : null) ??
+    null
+  );
 }
 
 function getPreferredKoreanSuffix(item: StockUniverseItem | null, symbol: string): "KS" | "KQ" | null {
-  const upperSymbol = symbol.toUpperCase();
-  if (upperSymbol.endsWith(".KS")) return "KS";
-  if (upperSymbol.endsWith(".KQ")) return "KQ";
-  if (item?.exchange?.toUpperCase().includes("KOSDAQ")) return "KQ";
-  if (item?.exchange?.toUpperCase().includes("KOSPI")) return "KS";
-  return null;
+  return getKoreanMarketSuffix(item?.exchange, symbol);
 }
 
 function toYahooSymbolSync(symbol: string): string {
   const item = getUniverseItem(symbol);
-  const normalizedSymbol = normalizeSymbolInput(symbol);
-  const preferredSuffix = getPreferredKoreanSuffix(item, symbol);
-
-  if (symbol.toUpperCase().endsWith(".KS") || symbol.toUpperCase().endsWith(".KQ")) {
-    return symbol.toUpperCase();
-  }
-
-  if (preferredSuffix && /^[0-9]{6}$/.test(normalizedSymbol)) {
-    return `${normalizedSymbol}.${preferredSuffix}`;
-  }
-
-  if (item?.country === "KR" && /^[0-9]{6}$/.test(normalizedSymbol)) {
-    return `${normalizedSymbol}.KS`;
-  }
-
-  if (item?.country === "KR" && !normalizedSymbol.includes(".")) {
-    return `${normalizedSymbol}.KS`;
-  }
-
-  if (!item && /^[0-9]{6}$/.test(normalizedSymbol)) {
-    return `${normalizedSymbol}.KS`;
-  }
-
-  return normalizedSymbol;
+  return normalizeMarketSymbol(symbol, item ?? undefined).yahooSymbol;
 }
 
 async function fetchYahooChartByYahooSymbol(yahooSymbol: string, range = "1y"): Promise<YahooChartResult | null> {
@@ -174,20 +155,20 @@ async function fetchYahooQuoteByYahooSymbol(yahooSymbol: string): Promise<YahooQ
 
 async function resolveYahooSymbol(symbol: string): Promise<string | null> {
   const item = getUniverseItem(symbol);
-  const normalizedSymbol = normalizeSymbolInput(symbol);
+  const resolved = normalizeMarketSymbol(symbol, item ?? undefined);
+  const normalizedSymbol = resolved.normalizedSymbol;
   const upperSymbol = symbol.toUpperCase();
 
   if (upperSymbol.endsWith(".KS") || upperSymbol.endsWith(".KQ")) {
-    return upperSymbol;
+    return resolved.yahooSymbol;
   }
 
   if (!/^[0-9]{6}$/.test(normalizedSymbol)) {
-    return toYahooSymbolSync(symbol);
+    return resolved.yahooSymbol;
   }
 
-  const preferredSuffix = getPreferredKoreanSuffix(item, symbol);
-  if (preferredSuffix) {
-    return `${normalizedSymbol}.${preferredSuffix}`;
+  if (item?.exchange || upperSymbol.startsWith("A")) {
+    return resolved.yahooSymbol;
   }
 
   if (!koreanYahooSymbolCache.has(normalizedSymbol)) {
@@ -220,8 +201,9 @@ function createDirectTickerProfile(symbol: string): CompanyProfile | null {
     return null;
   }
 
-  const normalizedSymbol = normalizeSymbolInput(symbol);
-  const isKoreanTicker = /^[0-9]{6}$/.test(normalizedSymbol) || /\.KS$/i.test(symbol) || /\.KQ$/i.test(symbol);
+  const resolved = normalizeMarketSymbol(symbol);
+  const normalizedSymbol = resolved.normalizedSymbol;
+  const isKoreanTicker = /^[0-9]{6}$/.test(normalizedSymbol) || /\.KS$/i.test(symbol) || /\.KQ$/i.test(symbol) || /^A\d{1,6}$/i.test(symbol.trim());
   const preferredSuffix = getPreferredKoreanSuffix(null, symbol);
 
   return {
@@ -522,18 +504,41 @@ export const yahooMarketDataProvider: StockMarketProvider = {
 
     const prices: HistoricalPrice[] = [];
 
+    const seenDates = new Set<string>();
+
     timestamps.forEach((timestamp, index) => {
       const open = quote.open?.[index];
       const high = quote.high?.[index];
       const low = quote.low?.[index];
       const close = quote.close?.[index];
+      const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
 
-      if (open == null || high == null || low == null || close == null) {
+      if (
+        seenDates.has(date) ||
+        open == null ||
+        high == null ||
+        low == null ||
+        close == null ||
+        !Number.isFinite(open) ||
+        !Number.isFinite(high) ||
+        !Number.isFinite(low) ||
+        !Number.isFinite(close) ||
+        open <= 0 ||
+        high <= 0 ||
+        low <= 0 ||
+        close <= 0 ||
+        high < low ||
+        high < open ||
+        high < close ||
+        low > open ||
+        low > close
+      ) {
         return;
       }
 
+      seenDates.add(date);
       prices.push({
-        date: new Date(timestamp * 1000).toISOString().slice(0, 10),
+        date,
         open,
         high,
         low,

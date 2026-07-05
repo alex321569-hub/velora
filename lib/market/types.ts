@@ -174,6 +174,7 @@ export interface StockAnalysisResponse {
   recentPrices: RecentPricePoint[];
   chartPrices: RecentPricePoint[];
   indicators: StockIndicators;
+  aiScore?: number;
 }
 
 export interface MarketDataProvider {
