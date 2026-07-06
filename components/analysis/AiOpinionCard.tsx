@@ -115,6 +115,23 @@ export default function AiOpinionCard({
             <StateTile icon="📊" label="RSI" value={indicators.rsi.toFixed(1)} sub={opinion.rsiLabel} tone={indicators.rsi >= 70 ? "text-yellow-300" : indicators.rsi <= 30 ? "text-negative" : "text-positive"} />
             <StateTile icon="📈" label="MACD" value={opinion.macdLabel} tone={getMacdStatusClass(opinion.macdLabel)} />
             <StateTile
+              icon="CH"
+              label="차트 건전도"
+              value={opinion.chartHealth ? `${opinion.chartHealth.score}점` : "데이터 없음"}
+              sub={opinion.chartHealth?.label}
+              tone={
+                !opinion.chartHealth
+                  ? "text-muted"
+                  : opinion.chartHealth.score >= 70
+                    ? "text-positive"
+                    : opinion.chartHealth.score >= 55
+                      ? "text-yellow-300"
+                      : opinion.chartHealth.score >= 40
+                        ? "text-orange-300"
+                        : "text-negative"
+              }
+            />
+            <StateTile
               icon="🛡"
               label="지지선"
               value={opinion.support ? formatPrice(opinion.support.price, currency) : "데이터 없음"}

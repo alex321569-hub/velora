@@ -127,6 +127,55 @@ export interface SupportResistance {
   resistanceMessage?: string;
 }
 
+export type MarketStructure = "HH_HL" | "LH_HL" | "HH_LL" | "LH_LL" | "UNKNOWN";
+
+export type ChartHealthGrade = "VERY_HEALTHY" | "HEALTHY" | "NEUTRAL" | "DAMAGED" | "SEVERELY_DAMAGED";
+
+export interface MarketStructurePresentation {
+  code: MarketStructure;
+  label: string;
+  summary: string;
+}
+
+export interface ChartHealthResult {
+  score: number;
+  grade: ChartHealthGrade;
+  label: string;
+  components: {
+    maAlignment: number;
+    maSlope: number;
+    marketStructure: number;
+    pricePosition: number;
+    volatility: number;
+    volumeHealth: number;
+  };
+  metrics: {
+    ma20: number | null;
+    ma60: number | null;
+    ma120: number | null;
+    currentPrice: number | null;
+    ma20Slope: number | null;
+    ma60Slope: number | null;
+    ma120Slope: number | null;
+    highChangePercent: number | null;
+    lowChangePercent: number | null;
+    distanceFromMa20: number | null;
+    drawdownFromRecentHigh: number | null;
+    atrPercent: number | null;
+    distributionDays: number;
+    volumeRatio: number | null;
+    marketStructure: MarketStructure;
+  };
+  marketStructure: MarketStructurePresentation;
+  damagePenalty: number;
+  appliedScoreCap: number | null;
+  appliedScoreCapReason: string | null;
+  positives: string[];
+  negatives: string[];
+  warnings: string[];
+  insufficientData: boolean;
+}
+
 export interface HistoricalPriceValidationResult {
   isValid: boolean;
   sortedPrices: PricePoint[];
@@ -152,6 +201,7 @@ export interface CompositeSignal {
 
 export interface StockIndicators {
   calculationError?: string;
+  chartHealth?: ChartHealthResult;
   week52High: number;
   week52Low: number;
   bollingerBands: BollingerBands;

@@ -1,6 +1,6 @@
-import type { RecentPricePoint, StockBasicInfo, StockIndicators, SupportResistanceLevel } from "@/lib/market/types";
+import type { ChartHealthResult, RecentPricePoint, StockBasicInfo, StockIndicators, SupportResistanceLevel } from "@/lib/market/types";
 
-export type BreakdownCategory = "long" | "short" | "momentum" | "levels" | "volume" | "confidence";
+export type BreakdownCategory = "long" | "short" | "momentum" | "levels" | "volume" | "chartHealth" | "confidence";
 
 export type BreakdownItem = {
   label: string;
@@ -44,6 +44,9 @@ export type AiOpinion = {
   resistance: SupportResistanceLevel | null;
   supportDistance: number | null;
   resistanceDistance: number | null;
+  chartHealth: ChartHealthResult | null;
+  rawAiScore: number;
+  scoreCapApplied: boolean;
   scoreItems: BreakdownItem[];
   confidenceItems: BreakdownItem[];
   volumeRising: boolean;

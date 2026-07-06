@@ -1,5 +1,6 @@
 import AiOpinionCard from "@/components/analysis/AiOpinionCard";
 import Card from "@/components/analysis/Card";
+import ChartHealthCard from "@/components/analysis/ChartHealthCard";
 import LevelList from "@/components/analysis/LevelList";
 import MovingAverageRow from "@/components/analysis/MovingAverageRow";
 import MobileDisclosure from "@/components/MobileDisclosure";
@@ -97,6 +98,8 @@ export default function AnalysisCards({
         </Card>
 
         </MobileDisclosure>
+
+        <ChartHealthCard chartHealth={indicators.chartHealth} />
 
         <AiOpinionCard
           symbol={symbol}

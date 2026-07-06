@@ -8,6 +8,7 @@ import {
   getRsiStatus,
   validateHistoricalPrices,
 } from "./calculateIndicators";
+import { applyCompositeScoreCapByChartHealth, calculateChartHealth } from "../analysis/chartHealth";
 import { mockMarketDataProvider } from "./providers/mockProvider";
 import type { StockMarketProvider } from "./providers/marketProvider";
 import { yahooMarketDataProvider } from "./providers/yahooProvider";
@@ -162,6 +163,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   const basic = buildBasicInfo(profile, effectiveQuote, currentPrice, previousClose);
 
   if (!validation.isValid || closes.length === 0 || currentPrice <= 0) {
+    const chartHealth = calculateChartHealth(sortedPrices, currentPrice);
     const fallbackRecentPrices = sortedPrices.slice(-10).reverse().map((price) => ({ ...price, changePercent: 0 }));
 
     return {
@@ -170,6 +172,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
       chartPrices: sortedPrices.slice(-30).map((price) => ({ ...price, changePercent: 0 })),
       indicators: {
         calculationError: "데이터 없음",
+        chartHealth,
         week52High: 0,
         week52Low: 0,
         bollingerBands: { upper: 0, middle: 0, lower: 0 },
@@ -212,6 +215,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   const rsi = calculateRSI(closes);
   const macd = calculateMACD(closes);
   const supportResistance = calculateSupportResistance(sortedPrices, currentPrice);
+  const chartHealth = calculateChartHealth(sortedPrices, currentPrice);
   const recentPrices = sortedPrices.slice(-10).reverse().map((price) => {
     const originalIndex = sortedPrices.findIndex((candidate) => candidate.date === price.date);
     const previous = sortedPrices[Math.max(originalIndex - 1, 0)]?.close ?? price.close;
@@ -296,6 +300,8 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   compositeScore += getSupportDistanceScore(nearestSupport.percent);
   compositeScore += getResistanceDistanceScore(nearestResistance.percent, highDistancePercent <= 2);
   compositeScore = Math.max(0, Math.min(100, compositeScore));
+  compositeScore = Math.round(chartHealth.score * 0.3 + compositeScore * 0.7);
+  compositeScore = applyCompositeScoreCapByChartHealth(compositeScore, chartHealth);
   const hasOverheatWarning =
     rsi >= 70 ||
     recentTenReturn >= 12 ||
@@ -307,6 +313,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
     recentPrices,
     chartPrices,
     indicators: {
+      chartHealth,
       week52High,
       week52Low,
       bollingerBands,

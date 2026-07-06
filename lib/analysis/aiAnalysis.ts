@@ -1,5 +1,6 @@
 import { formatPrice } from "@/lib/formatters";
 import type { StockBasicInfo, StockIndicators } from "@/lib/market/types";
+import { applyCompositeScoreCapByChartHealth } from "./chartHealth";
 import type { AiOpinion, AnalysisInput, BreakdownCategory, BreakdownItem, Checkpoint, CheckpointPriority, Rating } from "./types";
 
 function clamp(value: number, min = 0, max = 100) {
@@ -182,6 +183,7 @@ export function buildAiOpinion({ indicators, currentPrice, recentPrices }: Analy
     : 0;
   const avgVolume = chronological.length ? chronological.reduce((sum, price) => sum + (price.volume ?? 0), 0) / chronological.length : 0;
   const volumeRising = (chronological.at(-1)?.volume ?? 0) > avgVolume && avgVolume > 0;
+  const chartHealth = indicators.chartHealth ?? null;
   const scoreItems: BreakdownItem[] = [];
   let score = 50;
 
@@ -212,9 +214,46 @@ export function buildAiOpinion({ indicators, currentPrice, recentPrices }: Analy
   if (nearHigh) add("52주 고점", -3, "52주 고점 2% 이내", "levels");
   if (volumeRising) add("최근 거래량", 3, "평균 거래량 증가", "volume");
 
-  const aiScore = Math.round(clamp(score));
+  const rawAiScore = Math.round(clamp(score));
+  let aiScore = rawAiScore;
+  let scoreCapApplied = false;
+
+  if (chartHealth && !chartHealth.insufficientData) {
+    const blendedScore = Math.round(clamp(rawAiScore * 0.7 + chartHealth.score * 0.3));
+    aiScore = applyCompositeScoreCapByChartHealth(blendedScore, chartHealth);
+    scoreCapApplied = aiScore < blendedScore;
+
+    scoreItems.push({
+      label: "차트 건전도",
+      points: Math.round((chartHealth.score - 50) * 0.2),
+      reason: `${chartHealth.label} (${chartHealth.score}점)`,
+      category: "chartHealth",
+    });
+
+    if (scoreCapApplied) {
+      scoreItems.push({
+        label: "차트 약화 상한",
+        points: aiScore - blendedScore,
+        reason: "중기 추세 확인이 필요해 종합 점수 상한 적용",
+        category: "chartHealth",
+      });
+    }
+  } else if (chartHealth?.insufficientData) {
+    scoreItems.push({
+      label: "차트 건전도",
+      points: -5,
+      reason: "평가에 필요한 OHLCV 데이터 부족",
+      category: "chartHealth",
+    });
+  }
+
   const rating = getAiRating(aiScore);
-  const risk = getRisk(aiScore, indicators.rsi, supportDistance, resistanceDistance, nearHigh, recentReturn);
+  let risk = getRisk(aiScore, indicators.rsi, supportDistance, resistanceDistance, nearHigh, recentReturn);
+  if (chartHealth && chartHealth.score < 40) {
+    risk = { icon: "●", label: "매우 높음", className: "text-negative" };
+  } else if (chartHealth && chartHealth.score < 55 && risk.label !== "매우 높음") {
+    risk = { icon: "●", label: "높음", className: "text-orange-300" };
+  }
   const confidenceItems: BreakdownItem[] = [];
   let confidence = 80;
 
@@ -253,10 +292,15 @@ export function buildAiOpinion({ indicators, currentPrice, recentPrices }: Analy
   const macdLabel = isMacdStatus(macdStatus, "up") ? "상승 신호" : isMacdStatus(macdStatus, "down") ? "하락 신호" : macdStatus ?? "데이터 없음";
   const seed = aiScore + confidenceScore + Math.round(indicators.rsi) + Math.round(recentReturn);
   const aiComment = chooseTemplate(buildAiTemplates(trendLabel, shortLabel, macdLabel, rsiLabel), seed);
-  const caution =
+  const overheatingCaution =
     nearHigh || priceDiscovery || recentReturn >= 12
       ? "고점 근접 또는 저항선 부재 구간입니다. 추격 매수는 신중해야 합니다."
       : null;
+  const chartHealthCaution =
+    chartHealth && !chartHealth.insufficientData && chartHealth.score < 55
+      ? `차트 건전도가 ${chartHealth.label} 상태입니다. 반등보다 20일선과 60일선 회복 여부를 먼저 확인하는 편이 안전합니다.`
+      : null;
+  const caution = [chartHealthCaution, overheatingCaution].filter(Boolean).join(" ") || null;
 
   return {
     aiScore,
@@ -274,6 +318,9 @@ export function buildAiOpinion({ indicators, currentPrice, recentPrices }: Analy
     resistance,
     supportDistance,
     resistanceDistance,
+    chartHealth,
+    rawAiScore,
+    scoreCapApplied,
     scoreItems,
     confidenceItems,
     volumeRising,
@@ -297,6 +344,22 @@ export function buildCheckpoints(
     add("5일선 회복 여부", "단기 추세가 다시 살아나는지 확인", "critical");
   } else if (ma5 !== null) {
     add("5일선 유지 여부", "단기 매수세가 이어지는지 확인", "watch");
+  }
+
+  if (opinion.chartHealth && !opinion.chartHealth.insufficientData) {
+    if (opinion.chartHealth.score < 40) {
+      add("60일선 회복 여부", "차트 흐름이 크게 약해져 중기 추세 회복 확인이 우선", "critical");
+    } else if (opinion.chartHealth.score < 55) {
+      add("최근 저점 방어", "고점과 저점 구조가 추가로 무너지지 않는지 확인", "critical");
+    }
+
+    if ((opinion.chartHealth.metrics.distanceFromMa20 ?? 0) > 15) {
+      add("20일선 이격 축소", "단기 과열 부담이 완화되는지 확인", "watch");
+    }
+
+    if (opinion.chartHealth.metrics.distributionDays >= 3) {
+      add("분산일 완화", "하락일 거래량 증가가 줄어드는지 확인", "watch");
+    }
   }
 
   if (opinion.resistance && opinion.resistanceDistance !== null && opinion.resistanceDistance <= 3) {
@@ -345,5 +408,6 @@ export function groupBreakdownItems(items: BreakdownItem[]) {
     { key: "momentum", title: "📊 모멘텀", items: items.filter((item) => item.category === "momentum") },
     { key: "levels", title: "🛡 지지/저항", items: items.filter((item) => item.category === "levels") },
     { key: "volume", title: "📈 거래량", items: items.filter((item) => item.category === "volume") },
+    { key: "chartHealth", title: "차트 건전도", items: items.filter((item) => item.category === "chartHealth") },
   ].filter((group) => group.items.length > 0);
 }
