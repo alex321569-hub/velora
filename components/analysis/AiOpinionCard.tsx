@@ -1,38 +1,126 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   buildCheckpoints,
   getMacdStatusClass,
   getProgressColor,
   groupBreakdownItems,
 } from "@/lib/analysis/aiAnalysis";
-import type { AiOpinion } from "@/lib/analysis/types";
+import type { AiOpinion, LocalScoreHistoryItem } from "@/lib/analysis/types";
 import { formatPercent, formatPrice } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo, StockIndicators } from "@/lib/market/types";
 import MobileDisclosure from "../MobileDisclosure";
 import AiCheckpointsCard from "./AiCheckpointsCard";
+import AiHistoryCard from "./AiHistoryCard";
 import Card from "./Card";
 import StateTile from "./StateTile";
 
+const MAX_LOCAL_SCORE_HISTORY = 10;
+const LOCAL_SCORE_HISTORY_WINDOW_MS = 5 * 60 * 1000;
+
+function getLocalHistoryKey(symbol: string) {
+  return `velora-local-score-history-${symbol.trim().toUpperCase()}`;
+}
+
+function readLocalHistory(symbol: string): LocalScoreHistoryItem[] {
+  try {
+    const stored = window.localStorage.getItem(getLocalHistoryKey(symbol));
+    const parsed = stored ? (JSON.parse(stored) as LocalScoreHistoryItem[]) : [];
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_LOCAL_SCORE_HISTORY) : [];
+  } catch (error) {
+    console.warn("[local-score-history] read failed", error);
+    return [];
+  }
+}
+
+function shouldReplaceLatest(next: LocalScoreHistoryItem, latest: LocalScoreHistoryItem | undefined) {
+  if (!latest) return false;
+
+  const nextTime = new Date(next.analyzedAt).getTime();
+  const latestTime = new Date(latest.analyzedAt).getTime();
+  const closeInTime = Number.isFinite(nextTime) && Number.isFinite(latestTime) && nextTime - latestTime < LOCAL_SCORE_HISTORY_WINDOW_MS;
+  const sameScores =
+    next.compositeScore === latest.compositeScore &&
+    next.chartHealthScore === latest.chartHealthScore &&
+    next.confidence === latest.confidence;
+
+  return closeInTime || sameScores;
+}
+
 export default function AiOpinionCard({
+  symbol,
   indicators,
+  currentPrice,
   currency,
   opinion,
 }: {
+  symbol: string;
   indicators: StockIndicators;
   currentPrice: number;
   currency: StockBasicInfo["currency"];
   recentPrices: RecentPricePoint[];
   opinion: AiOpinion;
 }) {
+  const [localHistory, setLocalHistory] = useState<LocalScoreHistoryItem[]>([]);
   const confidenceWarning =
     opinion.confidenceScore < 60
       ? "데이터가 부족하거나 기술지표의 일치도가 낮아 분석 신뢰도가 낮습니다."
       : opinion.confidenceScore < 80
         ? "현재 분석은 참고용으로 사용하시기 바랍니다."
         : null;
+  const scoreItemsKey = useMemo(
+    () => opinion.scoreItems.map((item) => `${item.label}:${item.points}:${item.reason}`).join("|"),
+    [opinion.scoreItems],
+  );
   const checkpoints = useMemo(() => buildCheckpoints(opinion, indicators, currency), [opinion, indicators, currency]);
+
+  useEffect(() => {
+    const entry: LocalScoreHistoryItem = {
+      symbol,
+      market: symbol.includes(".KS") || symbol.includes(".KQ") || /^\d{6}$/.test(symbol) ? "KR" : /^[A-Z]/i.test(symbol) ? "US" : "UNKNOWN",
+      analyzedAt: new Date().toISOString(),
+      price: Number.isFinite(currentPrice) ? currentPrice : null,
+      compositeScore: Number.isFinite(opinion.aiScore) ? opinion.aiScore : null,
+      chartHealthScore: indicators.chartHealth?.score ?? null,
+      confidence: Number.isFinite(opinion.confidenceScore) ? opinion.confidenceScore : null,
+      summary: opinion.aiComment,
+      risk: opinion.risk.label,
+      trend: opinion.trendLabel,
+      macd: opinion.macdLabel,
+      rsi: Number.isFinite(indicators.rsi) ? indicators.rsi : undefined,
+      reasons: opinion.scoreItems
+        .slice()
+        .sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
+        .slice(0, 8)
+        .map((item) => ({ label: item.label, points: item.points, reason: item.reason })),
+    };
+
+    try {
+      const currentHistory = readLocalHistory(symbol);
+      const nextHistory = shouldReplaceLatest(entry, currentHistory[0])
+        ? [entry, ...currentHistory.slice(1)]
+        : [entry, ...currentHistory];
+      const trimmedHistory = nextHistory.slice(0, MAX_LOCAL_SCORE_HISTORY);
+      window.localStorage.setItem(getLocalHistoryKey(symbol), JSON.stringify(trimmedHistory));
+      setLocalHistory(trimmedHistory);
+    } catch (error) {
+      console.warn("[local-score-history] write failed", error);
+      setLocalHistory([entry]);
+    }
+  }, [
+    symbol,
+    currentPrice,
+    indicators.chartHealth?.score,
+    indicators.rsi,
+    opinion.aiScore,
+    opinion.aiComment,
+    opinion.confidenceScore,
+    opinion.macdLabel,
+    opinion.risk.label,
+    opinion.trendLabel,
+    scoreItemsKey,
+  ]);
 
   return (
     <>
@@ -179,6 +267,7 @@ export default function AiOpinionCard({
       </MobileDisclosure>
 
       <AiCheckpointsCard checkpoints={checkpoints} />
+      <AiHistoryCard history={localHistory} currency={currency} />
     </>
   );
 }

@@ -52,6 +52,26 @@ export type AiOpinion = {
   volumeRising: boolean;
 };
 
+export type LocalScoreHistoryItem = {
+  symbol: string;
+  market: "KR" | "US" | "UNKNOWN";
+  analyzedAt: string;
+  price: number | null;
+  compositeScore: number | null;
+  chartHealthScore: number | null;
+  confidence: number | null;
+  summary?: string;
+  risk?: string;
+  trend?: string;
+  macd?: string;
+  rsi?: number;
+  reasons?: Array<{
+    label: string;
+    points: number;
+    reason: string;
+  }>;
+};
+
 export type AnalysisInput = {
   indicators: StockIndicators;
   currentPrice: number;

@@ -9,11 +9,13 @@ import { formatPrice } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo, StockIndicators } from "@/lib/market/types";
 
 export default function AnalysisCards({
+  symbol,
   indicators,
   currency,
   currentPrice,
   recentPrices,
 }: {
+  symbol: string;
   indicators: StockIndicators;
   currency: StockBasicInfo["currency"];
   currentPrice: number;
@@ -100,6 +102,7 @@ export default function AnalysisCards({
         <ChartHealthCard chartHealth={indicators.chartHealth} />
 
         <AiOpinionCard
+          symbol={symbol}
           indicators={indicators}
           currentPrice={currentPrice}
           currency={currency}
