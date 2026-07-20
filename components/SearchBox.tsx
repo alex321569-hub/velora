@@ -50,6 +50,7 @@ export default function SearchBox({
   const [isOpen, setIsOpen] = useState(false);
   const [selectedLabel, setSelectedLabel] = useState("");
   const [recentSymbols, setRecentSymbols] = useState<string[]>([]);
+  const [externalResults, setExternalResults] = useState<StockAlias[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const quickStocksRef = useRef<HTMLDivElement>(null);
 
@@ -58,7 +59,10 @@ export default function SearchBox({
     return () => window.clearTimeout(timeout);
   }, [query]);
 
-  const results = useMemo(() => getAutocompleteResults(debouncedQuery, 8, selectedFilter), [debouncedQuery, selectedFilter]);
+  const localResults = useMemo(() => getAutocompleteResults(debouncedQuery, 8, selectedFilter), [debouncedQuery, selectedFilter]);
+  const hasExactLocalTicker = localResults.some((stock) => normalizeSymbolInput(stock.symbol) === normalizeSymbolInput(debouncedQuery));
+  const shouldPreferExternalResults = externalResults.length > 0 && isTickerLikeInput(debouncedQuery) && !hasExactLocalTicker;
+  const results = shouldPreferExternalResults ? externalResults : localResults.length > 0 ? localResults : externalResults;
   const recentStocks = useMemo(
     () => recentSymbols.map(getStockBySymbol).filter((stock): stock is StockAlias => stock !== null),
     [recentSymbols],
@@ -90,6 +94,43 @@ export default function SearchBox({
     setActiveIndex(0);
     setIsOpen(query.trim().length > 0 && query !== selectedLabel);
   }, [query, selectedLabel]);
+
+  useEffect(() => {
+    const trimmedQuery = debouncedQuery.trim();
+    setExternalResults([]);
+
+    const hasExactLocalTickerResult = localResults.some((stock) => normalizeSymbolInput(stock.symbol) === normalizeSymbolInput(trimmedQuery));
+
+    if (trimmedQuery.length < 2 || !isTickerLikeInput(trimmedQuery) || hasExactLocalTickerResult) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    async function fetchExternalResults() {
+      try {
+        const params = new URLSearchParams({ query: trimmedQuery, filter: selectedFilter });
+        const response = await fetch(`/api/stocks?${params.toString()}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const payload = (await response.json()) as { results?: StockAlias[] };
+        if (!controller.signal.aborted) {
+          setExternalResults((payload.results ?? []).slice(0, 8));
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.warn("[search] external symbol lookup failed", error);
+        }
+      }
+    }
+
+    void fetchExternalResults();
+    return () => controller.abort();
+  }, [debouncedQuery, localResults.length, selectedFilter]);
 
   useEffect(() => {
     setIsOpen(false);

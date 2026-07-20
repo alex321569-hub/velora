@@ -1,11 +1,15 @@
 import type { StockMarketProvider } from "./marketProvider";
-import { getAutocompleteResults, isTickerLikeInput, normalizeSymbolInput } from "../searchStocks";
+import { getAutocompleteResultsInUniverse, isTickerLikeInput, normalizeSymbolInput } from "../searchStocks";
+import { getDiscoveredStocks, upsertDiscoveredStock } from "../discoveredUniverseStore";
 import { getKoreanMarketSuffix, normalizeKoreanCode, normalizeMarketSymbol } from "../symbolUtils";
 import { stockUniverse } from "../stockUniverse";
 import type { CompanyProfile, HistoricalPrice, Quote, SearchFilter, ShortInterest, StockUniverseItem } from "../types";
 
 interface YahooChartResult {
   meta?: {
+    symbol?: string;
+    exchangeName?: string;
+    instrumentType?: string;
     currency?: string;
     regularMarketPrice?: number;
     chartPreviousClose?: number;
@@ -35,6 +39,11 @@ interface YahooTradingPeriod {
 
 interface YahooQuoteResult {
   symbol?: string;
+  shortName?: string;
+  longName?: string;
+  quoteType?: string;
+  exchange?: string;
+  fullExchangeName?: string;
   currency?: string;
   marketState?: string;
   preMarketPrice?: number;
@@ -80,6 +89,31 @@ const yahooHeaders = {
 };
 
 const koreanYahooSymbolCache = new Map<string, Promise<string | null>>();
+const temporaryTickerAliases: Record<string, string> = {
+  SKHYV: "SKHY",
+};
+
+const discoveredMetadataOverrides: Record<string, Partial<StockUniverseItem>> = {
+  SKHY: {
+    name: "SK hynix Inc. ADR",
+    koreanName: "SK하이닉스 ADR",
+    sector: "Semiconductor",
+    industry: "Memory Semiconductor ADR",
+    aliases: ["SKHY", "SKHYV", "SK hynix ADR", "SK Hynix ADR", "SK하이닉스 ADR", "하이닉스 ADR"],
+  },
+};
+
+function mergeUniverseItems(...groups: StockUniverseItem[][]): StockUniverseItem[] {
+  const itemsBySymbol = new Map<string, StockUniverseItem>();
+
+  groups.flat().forEach((item) => {
+    const key = normalizeSymbolInput(item.symbol);
+    const existing = itemsBySymbol.get(key);
+    itemsBySymbol.set(key, existing ? { ...existing, ...item, aliases: Array.from(new Set([...existing.aliases, ...item.aliases])) } : item);
+  });
+
+  return Array.from(itemsBySymbol.values());
+}
 
 function getUniverseItem(symbol: string) {
   const normalizedSymbol = normalizeSymbolInput(symbol);
@@ -89,6 +123,23 @@ function getUniverseItem(symbol: string) {
     stockUniverse.find((stock) => normalizeSymbolInput(stock.symbol) === normalizedSymbol) ??
     (normalizedKoreanCode
       ? stockUniverse.find((stock) => stock.country === "KR" && normalizeKoreanCode(stock.symbol) === normalizedKoreanCode)
+      : null) ??
+    null
+  );
+}
+
+async function getUniverseItemAsync(symbol: string) {
+  const staticItem = getUniverseItem(symbol);
+  if (staticItem) return staticItem;
+
+  const discoveredItems = await getDiscoveredStocks();
+  const normalizedSymbol = normalizeSymbolInput(symbol);
+  const normalizedKoreanCode = normalizeKoreanCode(symbol);
+
+  return (
+    discoveredItems.find((stock) => normalizeSymbolInput(stock.symbol) === normalizedSymbol) ??
+    (normalizedKoreanCode
+      ? discoveredItems.find((stock) => stock.country === "KR" && normalizeKoreanCode(stock.symbol) === normalizedKoreanCode)
       : null) ??
     null
   );
@@ -154,10 +205,11 @@ async function fetchYahooQuoteByYahooSymbol(yahooSymbol: string): Promise<YahooQ
 }
 
 async function resolveYahooSymbol(symbol: string): Promise<string | null> {
-  const item = getUniverseItem(symbol);
-  const resolved = normalizeMarketSymbol(symbol, item ?? undefined);
-  const normalizedSymbol = resolved.normalizedSymbol;
   const upperSymbol = symbol.toUpperCase();
+  const lookupSymbol = temporaryTickerAliases[upperSymbol] ?? symbol;
+  const item = await getUniverseItemAsync(lookupSymbol);
+  const resolved = normalizeMarketSymbol(lookupSymbol, item ?? undefined);
+  const normalizedSymbol = resolved.normalizedSymbol;
 
   if (upperSymbol.endsWith(".KS") || upperSymbol.endsWith(".KQ")) {
     return resolved.yahooSymbol;
@@ -221,14 +273,138 @@ function createDirectTickerProfile(symbol: string): CompanyProfile | null {
   };
 }
 
-function toDirectTickerResult(symbol: string): StockUniverseItem | null {
-  const profile = createDirectTickerProfile(symbol);
-  if (!profile) return null;
+function normalizeYahooExchange(quote: YahooQuoteResult | null): string {
+  const rawExchange = `${quote?.fullExchangeName ?? quote?.exchange ?? ""}`.trim();
+  const normalized = rawExchange.toUpperCase();
 
-  const { listingDate, currency, ...stock } = profile;
-  void listingDate;
-  void currency;
-  return stock;
+  if (["NMS", "NGM", "NAS", "NASDAQ", "NASDAQGS", "NASDAQGM", "NASDAQCM", "NASDAQ GLOBAL SELECT", "NASDAQ GLOBAL MARKET", "NASDAQ CAPITAL MARKET"].some((token) => normalized.includes(token))) {
+    return "NASDAQ";
+  }
+
+  if (["NYQ", "NYSE", "NEW YORK STOCK EXCHANGE"].some((token) => normalized.includes(token))) {
+    return "NYSE";
+  }
+
+  if (["ASE", "AMEX", "NYSE AMERICAN"].some((token) => normalized.includes(token))) {
+    return "AMEX";
+  }
+
+  if (["PCX", "NYSEARCA", "NYSE ARCA"].some((token) => normalized.includes(token))) {
+    return "NYSEARCA";
+  }
+
+  if (normalized.includes("BATS")) {
+    return "BATS";
+  }
+
+  return rawExchange || "UNKNOWN";
+}
+
+function isYahooEtf(quote: YahooQuoteResult | null, name: string): boolean {
+  const quoteType = quote?.quoteType?.toUpperCase();
+  if (quoteType === "ETF") return true;
+
+  const normalizedName = name.toUpperCase();
+  const stockPhrases = [
+    "AMERICAN DEPOSITARY SHARE",
+    "AMERICAN DEPOSITARY SHARES",
+    "DEPOSITARY SHARES",
+    "ORDINARY SHARE",
+    "ORDINARY SHARES",
+    "COMMON SHARE",
+    "COMMON SHARES",
+    "CLASS A ORDINARY SHARES",
+  ];
+
+  if (stockPhrases.some((phrase) => normalizedName.includes(phrase))) {
+    return false;
+  }
+
+  return /\bETF\b/.test(normalizedName) || normalizedName.includes("EXCHANGE TRADED FUND");
+}
+
+function createDiscoveredStockFromQuote(requestedQuery: string, resolvedSymbol: string, quote: YahooQuoteResult): StockUniverseItem | null {
+  const symbol = normalizeSymbolInput(resolvedSymbol);
+  if (!symbol || /^\d{1,6}$/.test(symbol)) return null;
+
+  const rawName = quote.longName ?? quote.shortName ?? symbol;
+  const override = discoveredMetadataOverrides[symbol];
+  const name = override?.name ?? rawName;
+  const exchange = override?.exchange ?? normalizeYahooExchange(quote);
+  const assetType = override?.assetType ?? (isYahooEtf(quote, name) ? "etf" : "stock");
+  const aliases = Array.from(
+    new Set([symbol, requestedQuery.trim().toUpperCase(), quote.symbol, quote.shortName, quote.longName, name, ...(override?.aliases ?? [])].filter((value): value is string => Boolean(value?.trim()))),
+  );
+
+  return {
+    symbol,
+    name,
+    koreanName: override?.koreanName ?? name,
+    exchange,
+    country: override?.country ?? "US",
+    assetType,
+    sector: override?.sector ?? (assetType === "etf" ? "ETF" : "Other"),
+    industry: override?.industry ?? (assetType === "etf" ? "Exchange Traded Fund" : "Other"),
+    aliases,
+    searchBoost: override?.searchBoost,
+  };
+}
+
+function createQuoteLikeFromChart(symbol: string, chart: YahooChartResult | null): YahooQuoteResult {
+  return {
+    symbol: chart?.meta?.symbol ?? symbol,
+    quoteType: chart?.meta?.instrumentType,
+    exchange: chart?.meta?.exchangeName,
+    currency: chart?.meta?.currency,
+    regularMarketPrice: chart?.meta?.regularMarketPrice,
+  };
+}
+
+function getExternalLookupCandidates(query: string): string[] {
+  const normalized = query.trim().toUpperCase();
+  const candidates = [temporaryTickerAliases[normalized] ?? normalized, normalized];
+
+  if (/^[A-Z]{2,8}V$/.test(normalized)) {
+    candidates.push(normalized.slice(0, -1));
+  }
+
+  return Array.from(new Set(candidates.filter(Boolean)));
+}
+
+async function lookupExternalSymbol(query: string): Promise<StockUniverseItem | null> {
+  if (!isTickerLikeInput(query) || query.trim().length < 2) {
+    return null;
+  }
+
+  for (const candidate of getExternalLookupCandidates(query)) {
+    const quote = await fetchYahooQuoteByYahooSymbol(candidate);
+    const hasPrice =
+      typeof quote?.regularMarketPrice === "number" ||
+      typeof quote?.preMarketPrice === "number" ||
+      typeof quote?.postMarketPrice === "number";
+    const hasIdentity = Boolean(quote?.symbol || quote?.shortName || quote?.longName);
+
+    if (!quote || (!hasPrice && !hasIdentity)) {
+      const chart = await fetchYahooChartByYahooSymbol(candidate, "1mo");
+      if (!chart?.timestamp?.length && typeof chart?.meta?.regularMarketPrice !== "number") {
+        continue;
+      }
+
+      const discoveredStock = createDiscoveredStockFromQuote(query, chart.meta?.symbol ?? candidate, createQuoteLikeFromChart(candidate, chart));
+      if (!discoveredStock) continue;
+
+      await upsertDiscoveredStock(discoveredStock);
+      return discoveredStock;
+    }
+
+    const discoveredStock = createDiscoveredStockFromQuote(query, quote?.symbol ?? candidate, quote ?? { symbol: candidate });
+    if (!discoveredStock) continue;
+
+    await upsertDiscoveredStock(discoveredStock);
+    return discoveredStock;
+  }
+
+  return null;
 }
 
 async function fetchYahooChart(symbol: string, range = "1y"): Promise<YahooChartResult | null> {
@@ -413,23 +589,39 @@ export const yahooMarketDataProvider: StockMarketProvider = {
   },
 
   async searchSymbols(query: string, limit = 8, filter: SearchFilter = "all") {
-    const results = getAutocompleteResults(query, limit, filter);
-    if (results.length > 0 || !isTickerLikeInput(query) || query.trim().length < 2) {
+    const discoveredStocks = await getDiscoveredStocks();
+    const searchableUniverse = mergeUniverseItems(stockUniverse, discoveredStocks);
+    const results = getAutocompleteResultsInUniverse(query, searchableUniverse, limit, filter);
+    const normalizedQuery = normalizeSymbolInput(query);
+    const hasExactLocalTicker = results.some((stock) => normalizeSymbolInput(stock.symbol) === normalizedQuery);
+
+    if (!isTickerLikeInput(query) || query.trim().length < 2 || hasExactLocalTicker) {
       return results;
     }
 
-    const result = await fetchYahooChart(query, "1mo");
-    if (!result?.meta?.regularMarketPrice && !result?.timestamp?.length) {
+    const externalResult = await lookupExternalSymbol(query);
+    if (!externalResult) {
       return results;
     }
 
-    const directTicker = toDirectTickerResult(query);
-    return directTicker ? [directTicker] : results;
+    return [
+      externalResult,
+      ...results.filter((stock) => normalizeSymbolInput(stock.symbol) !== normalizeSymbolInput(externalResult.symbol)),
+    ].slice(0, limit);
   },
 
   async getCompanyProfile(symbol: string): Promise<CompanyProfile | null> {
-    const item = getUniverseItem(symbol);
+    const item = await getUniverseItemAsync(symbol);
     if (!item) {
+      const externalItem = await lookupExternalSymbol(symbol);
+      if (externalItem) {
+        return {
+          ...externalItem,
+          listingDate: null,
+          currency: externalItem.country === "KR" ? "KRW" : "USD",
+        };
+      }
+
       return createDirectTickerProfile(symbol);
     }
 

@@ -58,8 +58,8 @@ export function isTickerLikeInput(value: string): boolean {
   return /^[A-Za-z][A-Za-z0-9.-]{0,11}$/.test(trimmed) || /^A?[0-9]{1,6}(\.(KS|KQ))?$/i.test(trimmed);
 }
 
-function createSearchIndex(): SearchIndexItem[] {
-  return stockUniverse.map((stock) => {
+function createSearchIndex(universe: StockUniverseItem[] = stockUniverse): SearchIndexItem[] {
+  return universe.map((stock) => {
     const aliases = stock.aliases.map(normalizeText);
     const filterTokens = [stock.sector, stock.industry, stock.assetType, stock.country].map(normalizeText);
 
@@ -160,15 +160,19 @@ function getSearchScore(item: SearchIndexItem, query: string): number {
   return 0;
 }
 
-function rankStocks(query: string, filter: SearchFilter = "all"): RankedStock[] {
+function rankStocksInIndex(searchItems: SearchIndexItem[], query: string, filter: SearchFilter = "all"): RankedStock[] {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) return [];
 
-  return searchIndex
+  return searchItems
     .filter((item) => matchesFilter(item, filter))
     .map((item) => ({ stock: item.stock, score: getSearchScore(item, query) }))
     .filter((result) => result.score > 0)
     .sort((a, b) => b.score - a.score || a.stock.symbol.localeCompare(b.stock.symbol));
+}
+
+function rankStocks(query: string, filter: SearchFilter = "all"): RankedStock[] {
+  return rankStocksInIndex(searchIndex, query, filter);
 }
 
 function createKoreanDirectTicker(query: string): StockUniverseItem | null {
@@ -198,6 +202,16 @@ export function searchStocksByAlias(query: string, filter: SearchFilter = "all")
   return results;
 }
 
+export function searchStocksByAliasInUniverse(query: string, universe: StockUniverseItem[], filter: SearchFilter = "all"): StockUniverseItem[] {
+  const results = rankStocksInIndex(createSearchIndex(universe), query, filter).map((result) => result.stock);
+  const directTicker = createKoreanDirectTicker(query);
+  if (results.length === 0 && directTicker && (filter === "all" || filter === "kr")) {
+    return [directTicker];
+  }
+
+  return results;
+}
+
 export function getBestMatch(query: string, filter: SearchFilter = "all"): StockUniverseItem | null {
   const results = rankStocks(query, filter);
   const directTicker = createKoreanDirectTicker(query);
@@ -209,8 +223,31 @@ export function getBestMatch(query: string, filter: SearchFilter = "all"): Stock
   return results[0].score >= 6500 || results.length === 1 ? results[0].stock : null;
 }
 
+export function getBestMatchInUniverse(query: string, universe: StockUniverseItem[], filter: SearchFilter = "all"): StockUniverseItem | null {
+  const results = rankStocksInIndex(createSearchIndex(universe), query, filter);
+  const directTicker = createKoreanDirectTicker(query);
+  if (results.length === 0 && directTicker && (filter === "all" || filter === "kr")) {
+    return directTicker;
+  }
+
+  if (results.length === 0) return null;
+  return results[0].score >= 6500 || results.length === 1 ? results[0].stock : null;
+}
+
 export function getAutocompleteResults(query: string, limit = 8, filter: SearchFilter = "all"): StockUniverseItem[] {
   const results = rankStocks(query, filter)
+    .slice(0, limit)
+    .map((result) => result.stock);
+  const directTicker = createKoreanDirectTicker(query);
+  if (results.length === 0 && directTicker && (filter === "all" || filter === "kr")) {
+    return [directTicker];
+  }
+
+  return results;
+}
+
+export function getAutocompleteResultsInUniverse(query: string, universe: StockUniverseItem[], limit = 8, filter: SearchFilter = "all"): StockUniverseItem[] {
+  const results = rankStocksInIndex(createSearchIndex(universe), query, filter)
     .slice(0, limit)
     .map((result) => result.stock);
   const directTicker = createKoreanDirectTicker(query);

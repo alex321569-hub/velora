@@ -1,88 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   buildCheckpoints,
   getMacdStatusClass,
   getProgressColor,
-  getTodayKey,
   groupBreakdownItems,
 } from "@/lib/analysis/aiAnalysis";
-import type { AiOpinion, HistoryEntry } from "@/lib/analysis/types";
+import type { AiOpinion } from "@/lib/analysis/types";
 import { formatPercent, formatPrice } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo, StockIndicators } from "@/lib/market/types";
 import MobileDisclosure from "../MobileDisclosure";
 import AiCheckpointsCard from "./AiCheckpointsCard";
-import AiHistoryCard from "./AiHistoryCard";
 import Card from "./Card";
 import StateTile from "./StateTile";
 
 export default function AiOpinionCard({
-  symbol,
   indicators,
   currency,
   opinion,
 }: {
-  symbol: string;
   indicators: StockIndicators;
   currentPrice: number;
   currency: StockBasicInfo["currency"];
   recentPrices: RecentPricePoint[];
   opinion: AiOpinion;
 }) {
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const confidenceWarning =
     opinion.confidenceScore < 60
       ? "데이터가 부족하거나 기술지표의 일치도가 낮아 분석 신뢰도가 낮습니다."
       : opinion.confidenceScore < 80
         ? "현재 분석은 참고용으로 사용하시기 바랍니다."
         : null;
-  const scoreItemsKey = useMemo(
-    () => opinion.scoreItems.map((item) => `${item.label}:${item.points}:${item.reason}`).join("|"),
-    [opinion.scoreItems],
-  );
-
-  useEffect(() => {
-    const key = `velora-ai-history-${symbol}`;
-    const today = getTodayKey();
-    const reasons = opinion.scoreItems
-      .slice()
-      .sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
-      .map((item) => ({ label: item.label, points: item.points, reason: item.reason }));
-    const entry: HistoryEntry = {
-      date: today,
-      score: opinion.aiScore,
-      stars: opinion.rating.stars,
-      risk: opinion.risk.label,
-      rsi: indicators.rsi,
-      macd: opinion.macdLabel,
-      trend: opinion.trendLabel,
-      reasons,
-    };
-
-    try {
-      const stored = window.localStorage.getItem(key);
-      const parsed = stored ? (JSON.parse(stored) as HistoryEntry[]) : [];
-      const next = [entry, ...parsed.filter((item) => item.date !== today)].slice(0, 30);
-      window.localStorage.setItem(key, JSON.stringify(next));
-      setHistory(next);
-      setSelectedDate((current) => current ?? today);
-    } catch {
-      setHistory([entry]);
-      setSelectedDate(today);
-    }
-  }, [
-    symbol,
-    indicators.rsi,
-    opinion.aiScore,
-    opinion.rating.stars,
-    opinion.risk.label,
-    opinion.macdLabel,
-    opinion.trendLabel,
-    scoreItemsKey,
-  ]);
-
   const checkpoints = useMemo(() => buildCheckpoints(opinion, indicators, currency), [opinion, indicators, currency]);
 
   return (
@@ -230,7 +179,6 @@ export default function AiOpinionCard({
       </MobileDisclosure>
 
       <AiCheckpointsCard checkpoints={checkpoints} />
-      <AiHistoryCard history={history} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
     </>
   );
 }

@@ -53,7 +53,6 @@ export async function GET(request: Request) {
         currency: stock.basic.currency,
         recentPrices: stock.recentPrices,
       });
-
   return NextResponse.json(
     {
       ...stock,

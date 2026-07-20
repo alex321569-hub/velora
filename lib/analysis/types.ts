@@ -58,14 +58,3 @@ export type AnalysisInput = {
   currency: StockBasicInfo["currency"];
   recentPrices: RecentPricePoint[];
 };
-
-export type HistoryEntry = {
-  date: string;
-  score: number;
-  stars: string;
-  risk: string;
-  rsi: number;
-  macd: string;
-  trend: string;
-  reasons: { label: string; points: number; reason: string }[];
-};

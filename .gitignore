@@ -8,6 +8,7 @@ out
 build
 
 .vercel
+.data
 outputs
 work
 *.log

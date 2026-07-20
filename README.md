@@ -2,7 +2,9 @@
 
 Velora is a personal stock search and analysis web app built with Next.js, TypeScript, and Tailwind CSS.
 
-It provides a clean search-first interface, autocomplete for US and Korean tickers, Yahoo Finance powered market data, recent prices, and technical analysis cards.
+It provides a clean search-first interface, autocomplete for US and Korean tickers, Yahoo Finance powered market data, recent prices, mini charts, TradingView detail charts, chart health, AI-style rule-based opinions, and technical analysis cards.
+
+Velora does not store analysis history, scores, chart health results, or AI opinions in a database or local file. Analysis results are calculated for the current screen only.
 
 ## Tech Stack
 
@@ -11,7 +13,7 @@ It provides a clean search-first interface, autocomplete for US and Korean ticke
 - Tailwind CSS
 - API Routes
 - Yahoo Finance provider
-- Generated stock universe for NASDAQ, NYSE, AMEX, and ETFs
+- Generated stock universe for NASDAQ, NYSE, AMEX, Korean stocks, and ETFs
 
 ## Local Setup
 
@@ -56,10 +58,11 @@ Do not commit `.env` or `.env.local`.
 
 ## Stock Universe
 
-Velora uses a generated stock universe file:
+Velora uses generated stock universe files:
 
 ```text
 lib/market/generated/stockUniverse.json
+lib/market/generated/koreaStockUniverse.json
 ```
 
 To refresh NASDAQ, NYSE, AMEX, and ETF symbols:
@@ -68,7 +71,11 @@ To refresh NASDAQ, NYSE, AMEX, and ETF symbols:
 npm run update:stock-universe
 ```
 
-The app also has manual Korean aliases for frequently used symbols such as `NVDA`, `AAPL`, `TSLA`, and `005930`.
+To refresh Korean symbols:
+
+```bash
+npm run update:korea-stock-universe
+```
 
 ## Build
 
