@@ -246,6 +246,88 @@ function scoreVolumeHealth(prices: PricePoint[]) {
   return { score: 2, ratio };
 }
 
+function scoreShortTermOverheat(
+  prices: PricePoint[],
+  close: number,
+  ma20: number | null,
+  ma60: number | null,
+  ma20Slope: number | null,
+  ma60Slope: number | null,
+  marketStructure: MarketStructure,
+  fiveDayReturn: number | null,
+  twentyDayReturn: number | null,
+  atr: number | null,
+  volumeRatio: number | null,
+) {
+  const recent = prices.slice(-5);
+  const averageVolume20 = average(
+    prices
+      .slice(-20)
+      .map((price) => price.volume ?? 0)
+      .filter((volume) => volume > 0),
+  );
+  const priorAtr = prices.length >= 20 ? calculateATR(prices.slice(0, -5), 14) : null;
+  const atrExpansionRatio =
+    atr !== null && priorAtr !== null && priorAtr > 0 ? atr / priorAtr : null;
+  const upperWickCount = recent.filter((price) => {
+    const range = price.high - price.low;
+    if (range <= 0) return false;
+    const upperWick = price.high - Math.max(price.open, price.close);
+    return upperWick / range >= 0.45;
+  }).length;
+  const highVolumeDownDays = recent.filter((price, index) => {
+    const previous = prices[prices.length - recent.length + index - 1];
+    const isDown = price.close < price.open && (!previous || price.close < previous.close);
+    const hasHeavyVolume =
+      averageVolume20 !== null &&
+      (price.volume ?? 0) >= averageVolume20 * 1.25;
+    return isDown && hasHeavyVolume;
+  }).length;
+  const distanceFromMa20 = ma20 !== null ? pct(close, ma20) : null;
+  const healthyTrend =
+    ma20 !== null &&
+    ma60 !== null &&
+    ma20Slope !== null &&
+    ma60Slope !== null &&
+    close > ma20 &&
+    ma20 > ma60 &&
+    ma20Slope > 0 &&
+    ma60Slope >= 0 &&
+    marketStructure !== "LH_LL";
+
+  let score = 100;
+  if ((fiveDayReturn ?? 0) > 12) score -= 12;
+  if ((fiveDayReturn ?? 0) > 20) score -= 8;
+  if ((twentyDayReturn ?? 0) > 25) score -= 10;
+  if ((twentyDayReturn ?? 0) > 40) score -= 10;
+  if ((distanceFromMa20 ?? 0) > 12) score -= 15;
+  if ((distanceFromMa20 ?? 0) > 20) score -= 15;
+  if ((atrExpansionRatio ?? 1) >= 1.35) score -= 10;
+  if ((atrExpansionRatio ?? 1) >= 1.7) score -= 10;
+  if (upperWickCount >= 2) score -= 10;
+  if (upperWickCount >= 3) score -= 8;
+  if (highVolumeDownDays >= 1) score -= 12;
+  if (highVolumeDownDays >= 2) score -= 13;
+
+  // A healthy trend can remain strong after a breakout. Only unstable price
+  // action should push this stability score into the weak range.
+  if (
+    healthyTrend &&
+    highVolumeDownDays === 0 &&
+    upperWickCount < 3 &&
+    (volumeRatio ?? 1) >= 0.9
+  ) {
+    score = Math.max(score, 72);
+  }
+
+  return {
+    score: Math.round(clamp(score)),
+    atrExpansionRatio,
+    upperWickCount,
+    highVolumeDownDays,
+  };
+}
+
 export function calculateChartHealth(prices: PricePoint[], currentPrice?: number): ChartHealthResult {
   const cleaned = prices.filter(isValidPrice).sort((a, b) => a.date.localeCompare(b.date));
   const warnings: string[] = [];
@@ -257,7 +339,7 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
       score: 0,
       grade: "SEVERELY_DAMAGED",
       label: "데이터 부족",
-      components: { maAlignment: 0, maSlope: 0, marketStructure: 0, pricePosition: 0, volatility: 0, volumeHealth: 0 },
+      components: { maAlignment: 0, maSlope: 0, marketStructure: 0, pricePosition: 0, volatility: 0, volumeHealth: 0, shortTermRecovery: 0, shortTermOverheat: 0 },
       metrics: {
         ma20: null,
         ma60: null,
@@ -274,6 +356,11 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
         distributionDays: 0,
         volumeRatio: null,
         marketStructure: "UNKNOWN",
+        fiveDayReturn: null,
+        twentyDayReturn: null,
+        atrExpansionRatio: null,
+        upperWickCount: 0,
+        highVolumeDownDays: 0,
       },
       damagePenalty: 0,
       appliedScoreCap: null,
@@ -306,22 +393,49 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
   const marketStructure = marketStructureAnalysis.marketStructure;
   const distributionDays = getDistributionDays(cleaned);
   const volume = scoreVolumeHealth(cleaned);
+  const fiveDayReturn = cleaned.length >= 6 ? pct(close, cleaned.at(-6)?.close ?? close) : null;
+  const twentyDayReturn = cleaned.length >= 21 ? pct(close, cleaned.at(-21)?.close ?? close) : null;
+  const previousClose = cleaned.at(-2)?.close ?? null;
+  const previousMa5 = cleaned.length >= 6 ? calculateSMA(closes.slice(0, -1), 5) : null;
+  const previousMa20 = cleaned.length >= 21 ? calculateSMA(closes.slice(0, -1), 20) : null;
+  const recoveredMa5 = previousClose !== null && previousMa5 !== null && previousClose <= previousMa5 && close > (calculateSMA(closes, 5) ?? close);
+  const recoveredMa20 = previousClose !== null && previousMa20 !== null && previousClose <= previousMa20 && close > (ma20 ?? close);
 
   let maAlignment = 0;
   if (ma20 !== null && close > ma20) maAlignment += 7;
   if (ma20 !== null && ma60 !== null && ma20 > ma60) maAlignment += 8;
   if (ma60 !== null && ma120 !== null && ma60 > ma120) maAlignment += 7;
   if (ma20 !== null && ma60 !== null && ma120 !== null && close > ma20 && ma20 > ma60 && ma60 > ma120) maAlignment += 3;
-  maAlignment = Math.min(maAlignment, 25);
+  maAlignment = Math.min(Math.round(maAlignment * 0.8), 20);
 
   let maSlope = 0;
   if (ma20Slope !== null) maSlope += ma20Slope > 1 ? 8 : ma20Slope >= 0 ? 5 : ma20Slope >= -1 ? 2 : 0;
   if (ma60Slope !== null) maSlope += ma60Slope > 1 ? 7 : ma60Slope >= 0 ? 5 : ma60Slope >= -1 ? 2 : 0;
 
-  const marketStructureScore = marketStructureAnalysis.score;
+  const marketStructureScore = Math.round(marketStructureAnalysis.score * 0.75);
   const pricePosition = scorePricePosition(distanceFromMa20, drawdownFromRecentHigh);
   const volatility = scoreVolatility(atrPercent);
   const volumeHealth = volume.score;
+  let shortTermRecovery = 0;
+  if (close > (calculateSMA(closes, 5) ?? Number.POSITIVE_INFINITY)) shortTermRecovery += 2;
+  if (ma20 !== null && close > ma20) shortTermRecovery += 2;
+  if ((fiveDayReturn ?? 0) > 0) shortTermRecovery += 2;
+  if ((twentyDayReturn ?? 0) > 0) shortTermRecovery += 2;
+  if (recoveredMa5) shortTermRecovery += 1;
+  if (recoveredMa20) shortTermRecovery += 1;
+  const shortTermOverheat = scoreShortTermOverheat(
+    cleaned,
+    close,
+    ma20,
+    ma60,
+    ma20Slope,
+    ma60Slope,
+    marketStructure,
+    fiveDayReturn,
+    twentyDayReturn,
+    atr,
+    volume.ratio,
+  );
 
   let damagePenalty = 0;
   if (ma20 !== null && close < ma20) damagePenalty += 5;
@@ -332,9 +446,20 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
   if (distributionDays >= 3) damagePenalty += 6;
   if (distributionDays >= 5) damagePenalty += 6;
   if (atrPercent !== null && atrPercent > 8) damagePenalty += 5;
-  damagePenalty = Math.min(damagePenalty, 40);
+  damagePenalty = Math.round(Math.min(damagePenalty, 40) * 0.5);
+  if (shortTermRecovery >= 7) damagePenalty = Math.max(0, damagePenalty - 3);
+  else if (shortTermRecovery >= 5) damagePenalty = Math.max(0, damagePenalty - 1);
 
-  let rawScore = maAlignment + maSlope + marketStructureScore + pricePosition + volatility + volumeHealth - damagePenalty;
+  const weightedHealthScore =
+    (maAlignment / 20) * 100 * 0.18 +
+    (maSlope / 15) * 100 * 0.18 +
+    (marketStructureScore / 15) * 100 * 0.18 +
+    (pricePosition / 15) * 100 * 0.14 +
+    (volatility / 10) * 100 * 0.1 +
+    (volumeHealth / 15) * 100 * 0.14 +
+    shortTermOverheat.score * 0.08;
+  const recoveryAdjustment = shortTermRecovery >= 7 ? 4 : shortTermRecovery >= 5 ? 2 : 0;
+  let rawScore = weightedHealthScore + recoveryAdjustment - damagePenalty;
   let appliedScoreCap: number | null = null;
   let appliedScoreCapReason: string | null = null;
   const capReasons: string[] = [];
@@ -356,6 +481,7 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
   const grade = getGrade(score);
 
   if (maAlignment >= 20) positives.push("현재가와 이동평균선 배열이 상승 추세에 우호적입니다.");
+  if (shortTermRecovery >= 7) positives.push("최근 5~20거래일 흐름에서 회복 신호가 빠르게 나타나고 있습니다.");
   if (ma20Slope !== null && ma20Slope > 0) positives.push("20일 이동평균선이 상승 기울기를 유지하고 있습니다.");
   if (marketStructure === "HH_HL") positives.push(getMarketStructurePresentation(marketStructure).summary);
   if (volume.ratio !== null && volume.ratio >= 1.2) positives.push("상승일 평균 거래량이 하락일보다 우세합니다.");
@@ -382,8 +508,16 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
   if (distributionDays >= 3) negatives.push(`최근 20거래일 동안 분산일이 ${distributionDays}회 발생했습니다.`);
   if (drawdownFromRecentHigh !== null && drawdownFromRecentHigh > 15) negatives.push("최근 고점 대비 낙폭이 커 차트 회복 확인이 필요합니다.");
   if (atrPercent !== null && atrPercent > 8) negatives.push("ATR 기준 변동성이 높아 가격 안정성이 낮습니다.");
+  if (shortTermOverheat.highVolumeDownDays >= 1) {
+    negatives.push("최근 거래량이 크게 늘어난 하락일이 있어 매도 압력 확인이 필요합니다.");
+  }
 
   if (distanceFromMa20 !== null && distanceFromMa20 > 15) warnings.push("현재 위치에서는 추격 진입 부담이 커질 수 있습니다.");
+  if (shortTermOverheat.score < 55) {
+    warnings.push("단기 상승 속도와 가격 변동이 함께 커져 안정 여부를 확인할 필요가 있습니다.");
+  } else if (shortTermOverheat.score < 75) {
+    warnings.push("상승 흐름은 유지되고 있지만 단기 과열 부담이 일부 반영되었습니다.");
+  }
   warnings.push(...capReasons);
   if (cleaned.length < 120) warnings.push("120거래일 미만 데이터로 장기 추세 평가는 제한적입니다.");
 
@@ -391,7 +525,7 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
     score,
     grade: grade.grade,
     label: grade.label,
-    components: { maAlignment, maSlope, marketStructure: marketStructureScore, pricePosition, volatility, volumeHealth },
+    components: { maAlignment, maSlope, marketStructure: marketStructureScore, pricePosition, volatility, volumeHealth, shortTermRecovery, shortTermOverheat: shortTermOverheat.score },
     metrics: {
       ma20,
       ma60,
@@ -408,6 +542,11 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
       distributionDays,
       volumeRatio: volume.ratio,
       marketStructure,
+      fiveDayReturn,
+      twentyDayReturn,
+      atrExpansionRatio: shortTermOverheat.atrExpansionRatio,
+      upperWickCount: shortTermOverheat.upperWickCount,
+      highVolumeDownDays: shortTermOverheat.highVolumeDownDays,
     },
     damagePenalty,
     appliedScoreCap,
@@ -422,9 +561,6 @@ export function calculateChartHealth(prices: PricePoint[], currentPrice?: number
 
 export function applyCompositeScoreCapByChartHealth(score: number, chartHealth: ChartHealthResult) {
   let cap = 100;
-  if (chartHealth.score < 40) cap = 49;
-  else if (chartHealth.score < 55) cap = 64;
-  else if (chartHealth.score < 70) cap = 79;
 
   if (
     chartHealth.metrics.marketStructure === "LH_LL" &&
@@ -434,7 +570,7 @@ export function applyCompositeScoreCapByChartHealth(score: number, chartHealth: 
     chartHealth.metrics.currentPrice < chartHealth.metrics.ma60 &&
     chartHealth.metrics.ma60Slope < 0
   ) {
-    cap = Math.min(cap, 50);
+    cap = Math.min(cap, 60);
   }
   if (
     (chartHealth.metrics.ma120 ?? 0) > 0 &&
@@ -443,7 +579,7 @@ export function applyCompositeScoreCapByChartHealth(score: number, chartHealth: 
     (chartHealth.metrics.ma60Slope ?? 0) < 0 &&
     (chartHealth.metrics.ma120Slope ?? 0) < 0
   ) {
-    cap = Math.min(cap, 40);
+    cap = Math.min(cap, 45);
   }
 
   return Math.min(score, cap);

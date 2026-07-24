@@ -8,6 +8,12 @@ import {
   getRsiStatus,
   validateHistoricalPrices,
 } from "./calculateIndicators";
+import { calculateAdaptiveCompositeScore } from "../analysis/adaptiveCompositeScore";
+import { calculateChartHealth } from "../analysis/chartHealth";
+import {
+  calculateRelativeStrength,
+  getRelativeStrengthBenchmarks,
+} from "../analysis/relativeStrength";
 import type { StockMarketProvider } from "./marketProvider";
 import { getAutocompleteResults } from "./searchStocks";
 import { stockUniverse } from "./stockUniverse";
@@ -340,6 +346,23 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
   const rsi = calculateRSI(closes);
   const macd = calculateMACD(closes);
   const supportResistance = calculateSupportResistance(sortedPrices, currentPrice);
+  const chartHealth = calculateChartHealth(sortedPrices, currentPrice);
+  const benchmarks = getRelativeStrengthBenchmarks(profile);
+  const [marketPrices, sectorPrices] = await Promise.all([
+    mockMarketDataProvider.getHistoricalPrices(benchmarks.marketSymbol),
+    benchmarks.sectorSymbol
+      ? mockMarketDataProvider.getHistoricalPrices(benchmarks.sectorSymbol)
+      : Promise.resolve([]),
+  ]);
+  const relativeStrength = calculateRelativeStrength(
+    sortedPrices,
+    marketPrices,
+    sectorPrices,
+    {
+      shortTermOverheatScore: chartHealth.components.shortTermOverheat,
+      benchmarks,
+    },
+  );
   const recentPrices = sortedPrices.slice(-10).reverse().map((price) => {
     const originalIndex = sortedPrices.findIndex((candidate) => candidate.date === price.date);
     const previous = sortedPrices[Math.max(originalIndex - 1, 0)]?.close ?? price.close;
@@ -403,33 +426,24 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
           : "중립";
   const pricePosition =
     rangePosition >= 0.85 ? "52주 고점 근처" : rangePosition <= 0.15 ? "52주 저점 근처" : "중간 구간";
-  let compositeScore = 0;
-  compositeScore += movingAverages.sma20 !== null && currentPrice > movingAverages.sma20 ? 10 : 0;
-  compositeScore += movingAverages.sma60 !== null && currentPrice > movingAverages.sma60 ? 10 : 0;
-  compositeScore += movingAverages.sma120 !== null && currentPrice > movingAverages.sma120 ? 5 : 0;
-  compositeScore += movingAverages.sma120 !== null && currentPrice < movingAverages.sma120 ? -5 : 0;
-  compositeScore += movingAverages.sma200 !== null && currentPrice > movingAverages.sma200 ? 10 : 0;
-  compositeScore += movingAverages.sma200 !== null && currentPrice < movingAverages.sma200 ? -10 : 0;
-  compositeScore += movingAverages.sma20 !== null && movingAverages.sma60 !== null && movingAverages.sma20 > movingAverages.sma60 ? 10 : 0;
-  compositeScore += movingAverages.sma60 !== null && movingAverages.sma120 !== null && movingAverages.sma60 > movingAverages.sma120 ? 10 : 0;
-  compositeScore += rsi >= 45 && rsi <= 65 ? 15 : 0;
-  compositeScore += rsi > 65 && rsi < 70 ? 5 : 0;
-  compositeScore += rsi >= 70 ? -10 : 0;
-  compositeScore += rsi <= 35 ? -10 : 0;
-  compositeScore += recentTenReturn > 0 && recentTenReturn <= 5 ? 10 : 0;
-  compositeScore += recentTenReturn > 5 && recentTenReturn < 12 ? 5 : 0;
-  compositeScore += recentTenReturn >= 12 ? -10 : 0;
-  compositeScore += highDrawdownPercent <= -5 && highDrawdownPercent >= -20 ? 10 : 0;
-  compositeScore += highDistancePercent <= 2 ? -5 : 0;
-  compositeScore += getSupportDistanceScore(nearestSupport.percent);
-  compositeScore += getResistanceDistanceScore(nearestResistance.percent, highDistancePercent <= 2);
-  compositeScore = Math.max(0, Math.min(100, compositeScore));
+  const scoreBreakdown = calculateAdaptiveCompositeScore({
+    prices: sortedPrices,
+    currentPrice,
+    movingAverages,
+    rsi,
+    macd,
+    chartHealth,
+    relativeStrength,
+  });
+  const compositeScore = scoreBreakdown.finalScore;
 
   return {
     basic,
     recentPrices,
     chartPrices,
     indicators: {
+      chartHealth,
+      relativeStrength,
       week52High,
       week52Low,
       bollingerBands,
@@ -453,6 +467,7 @@ export async function getStockAnalysis(symbol: string): Promise<StockAnalysisRes
           rsi >= 70 || recentTenReturn >= 12 || highDistancePercent <= 2 || currentPrice > bollingerBands.upper
             ? "단기 과열 가능성이 있습니다."
             : undefined,
+        scoreBreakdown,
       },
       shortInterestLabel: shortInterest?.label ?? "데이터 없음",
     },

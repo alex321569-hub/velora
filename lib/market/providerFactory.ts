@@ -8,11 +8,47 @@ import {
   getRsiStatus,
   validateHistoricalPrices,
 } from "./calculateIndicators";
-import { applyCompositeScoreCapByChartHealth, calculateChartHealth } from "../analysis/chartHealth";
+import { calculateAdaptiveCompositeScore } from "../analysis/adaptiveCompositeScore";
+import { calculateChartHealth } from "../analysis/chartHealth";
+import {
+  calculateRelativeStrength,
+  getRelativeStrengthBenchmarks,
+} from "../analysis/relativeStrength";
 import { mockMarketDataProvider } from "./providers/mockProvider";
 import type { StockMarketProvider } from "./providers/marketProvider";
 import { yahooMarketDataProvider } from "./providers/yahooProvider";
-import type { CompanyProfile, Quote, StockAnalysisResponse, StockBasicInfo, SupportResistanceLevel } from "./types";
+import type {
+  CompanyProfile,
+  HistoricalPrice,
+  Quote,
+  StockAnalysisResponse,
+  StockBasicInfo,
+  SupportResistanceLevel,
+} from "./types";
+
+const BENCHMARK_CACHE_TTL_MS = 5 * 60 * 1000;
+const benchmarkHistoryCache = new Map<
+  string,
+  { expiresAt: number; request: Promise<HistoricalPrice[]> }
+>();
+
+function getBenchmarkHistory(provider: StockMarketProvider, symbol: string) {
+  const key = `${provider.capabilities.name}:${symbol}`;
+  const cached = benchmarkHistoryCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.request;
+
+  const request = provider
+    .getHistoricalPrices(symbol, "1y")
+    .catch((error) => {
+      console.warn(`[relative-strength] ${symbol} benchmark request failed`, error);
+      return [];
+    });
+  benchmarkHistoryCache.set(key, {
+    expiresAt: Date.now() + BENCHMARK_CACHE_TTL_MS,
+    request,
+  });
+  return request;
+}
 
 function getNearestDistance(levels: SupportResistanceLevel[], currentPrice: number): { distance: number | null; percent: number | null } {
   if (levels.length === 0 || currentPrice === 0) {
@@ -75,42 +111,6 @@ function getScoreLabel(score: number) {
   }
 
   return "위험";
-}
-
-function getSupportDistanceScore(percent: number | null) {
-  if (percent === null) {
-    return -5;
-  }
-
-  if (percent <= 3) {
-    return -5;
-  }
-
-  if (percent <= 10) {
-    return 10;
-  }
-
-  if (percent <= 20) {
-    return 3;
-  }
-
-  return 0;
-}
-
-function getResistanceDistanceScore(percent: number | null, isNearWeek52High: boolean) {
-  if (percent === null) {
-    return isNearWeek52High ? 5 : 0;
-  }
-
-  if (percent <= 3) {
-    return -5;
-  }
-
-  if (percent < 10) {
-    return 3;
-  }
-
-  return 10;
 }
 
 function isKoreanDirectCode(symbol: string) {
@@ -216,6 +216,22 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
   const macd = calculateMACD(closes);
   const supportResistance = calculateSupportResistance(sortedPrices, currentPrice);
   const chartHealth = calculateChartHealth(sortedPrices, currentPrice);
+  const benchmarks = getRelativeStrengthBenchmarks(profile);
+  const [marketPrices, sectorPrices] = await Promise.all([
+    getBenchmarkHistory(provider, benchmarks.marketSymbol),
+    benchmarks.sectorSymbol
+      ? getBenchmarkHistory(provider, benchmarks.sectorSymbol)
+      : Promise.resolve([]),
+  ]);
+  const relativeStrength = calculateRelativeStrength(
+    sortedPrices,
+    marketPrices,
+    sectorPrices,
+    {
+      shortTermOverheatScore: chartHealth.components.shortTermOverheat,
+      benchmarks,
+    },
+  );
   const recentPrices = sortedPrices.slice(-10).reverse().map((price) => {
     const originalIndex = sortedPrices.findIndex((candidate) => candidate.date === price.date);
     const previous = sortedPrices[Math.max(originalIndex - 1, 0)]?.close ?? price.close;
@@ -279,29 +295,16 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
           : "중립";
   const pricePosition =
     rangePosition >= 0.85 ? "52주 고점 근처" : rangePosition <= 0.15 ? "52주 저점 근처" : "중간 구간";
-  let compositeScore = 0;
-  compositeScore += movingAverages.sma20 !== null && currentPrice > movingAverages.sma20 ? 10 : 0;
-  compositeScore += movingAverages.sma60 !== null && currentPrice > movingAverages.sma60 ? 10 : 0;
-  compositeScore += movingAverages.sma120 !== null && currentPrice > movingAverages.sma120 ? 5 : 0;
-  compositeScore += movingAverages.sma120 !== null && currentPrice < movingAverages.sma120 ? -5 : 0;
-  compositeScore += movingAverages.sma200 !== null && currentPrice > movingAverages.sma200 ? 10 : 0;
-  compositeScore += movingAverages.sma200 !== null && currentPrice < movingAverages.sma200 ? -10 : 0;
-  compositeScore += movingAverages.sma20 !== null && movingAverages.sma60 !== null && movingAverages.sma20 > movingAverages.sma60 ? 10 : 0;
-  compositeScore += movingAverages.sma60 !== null && movingAverages.sma120 !== null && movingAverages.sma60 > movingAverages.sma120 ? 10 : 0;
-  compositeScore += rsi >= 45 && rsi <= 65 ? 15 : 0;
-  compositeScore += rsi > 65 && rsi < 70 ? 5 : 0;
-  compositeScore += rsi >= 70 ? -10 : 0;
-  compositeScore += rsi <= 35 ? -10 : 0;
-  compositeScore += recentTenReturn > 0 && recentTenReturn <= 5 ? 10 : 0;
-  compositeScore += recentTenReturn > 5 && recentTenReturn < 12 ? 5 : 0;
-  compositeScore += recentTenReturn >= 12 ? -10 : 0;
-  compositeScore += highDrawdownPercent <= -5 && highDrawdownPercent >= -20 ? 10 : 0;
-  compositeScore += highDistancePercent <= 2 ? -5 : 0;
-  compositeScore += getSupportDistanceScore(nearestSupport.percent);
-  compositeScore += getResistanceDistanceScore(nearestResistance.percent, highDistancePercent <= 2);
-  compositeScore = Math.max(0, Math.min(100, compositeScore));
-  compositeScore = Math.round(chartHealth.score * 0.3 + compositeScore * 0.7);
-  compositeScore = applyCompositeScoreCapByChartHealth(compositeScore, chartHealth);
+  const scoreBreakdown = calculateAdaptiveCompositeScore({
+    prices: sortedPrices,
+    currentPrice,
+    movingAverages,
+    rsi,
+    macd,
+    chartHealth,
+    relativeStrength,
+  });
+  const compositeScore = scoreBreakdown.finalScore;
   const hasOverheatWarning =
     rsi >= 70 ||
     recentTenReturn >= 12 ||
@@ -314,6 +317,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
     chartPrices,
     indicators: {
       chartHealth,
+      relativeStrength,
       week52High,
       week52Low,
       bollingerBands,
@@ -334,6 +338,7 @@ export async function getStockAnalysis(symbol: string, provider = getMarketProvi
         score: compositeScore,
         scoreLabel: getScoreLabel(compositeScore),
         warning: hasOverheatWarning ? "단기 과열 가능성이 있습니다." : undefined,
+        scoreBreakdown,
       },
       shortInterestLabel: shortInterest?.label ?? "",
     },

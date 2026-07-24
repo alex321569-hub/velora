@@ -80,12 +80,14 @@ export default function ChartHealthCard({ chartHealth }: { chartHealth?: ChartHe
   }
 
   const componentRows = [
-    ["이동평균선 정렬", chartHealth.components.maAlignment, 25],
+    ["이동평균선 정렬", chartHealth.components.maAlignment, 20],
     ["추세 기울기", chartHealth.components.maSlope, 15],
-    ["고점/저점 구조", chartHealth.components.marketStructure, 20],
+    ["고점/저점 구조", chartHealth.components.marketStructure, 15],
     ["가격 위치", chartHealth.components.pricePosition, 15],
     ["변동성 안정성", chartHealth.components.volatility, 10],
     ["거래량 건전도", chartHealth.components.volumeHealth, 15],
+    ["단기 회복 신호", chartHealth.components.shortTermRecovery, 10],
+    ["단기 과열 안정성", chartHealth.components.shortTermOverheat, 100],
   ] as const;
 
   return (

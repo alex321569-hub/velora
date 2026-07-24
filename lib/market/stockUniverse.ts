@@ -20,7 +20,13 @@ type ManualStockOverride = Partial<Omit<StockUniverseItem, "symbol">> & {
 
 const manualStockOverrides: ManualStockOverride[] = [
   { symbol: "NVDA", koreanName: "엔비디아", sector: "AI", industry: "AI Semiconductor", aliases: ["엔비디아", "엔비"] },
-  { symbol: "AAPL", koreanName: "애플", aliases: ["애플"] },
+  {
+    symbol: "AAPL",
+    koreanName: "애플",
+    sector: "Technology",
+    industry: "Consumer Electronics",
+    aliases: ["애플"],
+  },
   { symbol: "TSLA", koreanName: "테슬라", sector: "EV", industry: "Automotive", aliases: ["테슬라"] },
   { symbol: "AMAT", koreanName: "어플라이드 머티리얼즈", sector: "Semiconductor", industry: "Semiconductor Equipment", aliases: ["어플라이드", "어플"] },
   { symbol: "TSM", koreanName: "대만반도체", sector: "Semiconductor", industry: "Foundry", aliases: ["TSMC", "Taiwan Semiconductor", "대만반도체"] },

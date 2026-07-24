@@ -148,6 +148,8 @@ export interface ChartHealthResult {
     pricePosition: number;
     volatility: number;
     volumeHealth: number;
+    shortTermRecovery: number;
+    shortTermOverheat: number;
   };
   metrics: {
     ma20: number | null;
@@ -165,6 +167,11 @@ export interface ChartHealthResult {
     distributionDays: number;
     volumeRatio: number | null;
     marketStructure: MarketStructure;
+    fiveDayReturn: number | null;
+    twentyDayReturn: number | null;
+    atrExpansionRatio: number | null;
+    upperWickCount: number;
+    highVolumeDownDays: number;
   };
   marketStructure: MarketStructurePresentation;
   damagePenalty: number;
@@ -197,11 +204,52 @@ export interface CompositeSignal {
   score: number;
   scoreLabel: "매우 양호" | "양호" | "중립" | "주의" | "위험";
   warning?: string;
+  scoreBreakdown?: import("../analysis/adaptiveCompositeScore").AdaptiveScoreBreakdown;
+}
+
+export type RelativeStrengthGrade =
+  | "VERY_STRONG"
+  | "STRONG"
+  | "NEUTRAL"
+  | "WEAK"
+  | "VERY_WEAK"
+  | "UNKNOWN";
+
+export interface RelativeStrengthResult {
+  score: number;
+  grade: RelativeStrengthGrade;
+  benchmarks: {
+    marketSymbol: string;
+    marketLabel: string;
+    sectorSymbol: string | null;
+    sectorLabel: string | null;
+  };
+  metrics: {
+    stockReturn5d: number | null;
+    stockReturn20d: number | null;
+    stockReturn60d: number | null;
+    marketReturn5d: number | null;
+    marketReturn20d: number | null;
+    marketReturn60d: number | null;
+    sectorReturn5d: number | null;
+    sectorReturn20d: number | null;
+    sectorReturn60d: number | null;
+    relativeToMarket5d: number | null;
+    relativeToMarket20d: number | null;
+    relativeToMarket60d: number | null;
+    relativeToSector5d: number | null;
+    relativeToSector20d: number | null;
+    relativeToSector60d: number | null;
+  };
+  positives: string[];
+  negatives: string[];
+  warnings: string[];
 }
 
 export interface StockIndicators {
   calculationError?: string;
   chartHealth?: ChartHealthResult;
+  relativeStrength?: RelativeStrengthResult;
   week52High: number;
   week52Low: number;
   bollingerBands: BollingerBands;

@@ -1,6 +1,14 @@
 import type { ChartHealthResult, RecentPricePoint, StockBasicInfo, StockIndicators, SupportResistanceLevel } from "@/lib/market/types";
 
-export type BreakdownCategory = "long" | "short" | "momentum" | "levels" | "volume" | "chartHealth" | "confidence";
+export type BreakdownCategory =
+  | "long"
+  | "short"
+  | "momentum"
+  | "relativeStrength"
+  | "levels"
+  | "volume"
+  | "chartHealth"
+  | "confidence";
 
 export type BreakdownItem = {
   label: string;
@@ -50,6 +58,8 @@ export type AiOpinion = {
   scoreItems: BreakdownItem[];
   confidenceItems: BreakdownItem[];
   volumeRising: boolean;
+  entryAttractivenessScore: number;
+  relativeStrengthLabel: string;
 };
 
 export type LocalScoreHistoryItem = {

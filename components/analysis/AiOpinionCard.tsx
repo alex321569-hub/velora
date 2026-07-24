@@ -8,7 +8,7 @@ import {
   groupBreakdownItems,
 } from "@/lib/analysis/aiAnalysis";
 import type { AiOpinion, LocalScoreHistoryItem } from "@/lib/analysis/types";
-import { formatPercent, formatPrice } from "@/lib/formatters";
+import { formatPercent, formatPrice, getPercentColorClass } from "@/lib/formatters";
 import type { RecentPricePoint, StockBasicInfo, StockIndicators } from "@/lib/market/types";
 import MobileDisclosure from "../MobileDisclosure";
 import AiCheckpointsCard from "./AiCheckpointsCard";
@@ -152,6 +152,25 @@ export default function AiOpinionCard({
             <StateTile icon="📊" label="RSI" value={indicators.rsi.toFixed(1)} sub={opinion.rsiLabel} tone={indicators.rsi >= 70 ? "text-yellow-300" : indicators.rsi <= 30 ? "text-negative" : "text-positive"} />
             <StateTile icon="📈" label="MACD" value={opinion.macdLabel} tone={getMacdStatusClass(opinion.macdLabel)} />
             <StateTile
+              icon="RS"
+              label="상대강도"
+              value={opinion.relativeStrengthLabel}
+              sub={
+                indicators.relativeStrength?.grade === "UNKNOWN"
+                  ? "벤치마크 데이터 부족"
+                  : `${indicators.relativeStrength?.score ?? 0}점`
+              }
+              tone={
+                indicators.relativeStrength?.grade === "VERY_STRONG" ||
+                indicators.relativeStrength?.grade === "STRONG"
+                  ? "text-positive"
+                  : indicators.relativeStrength?.grade === "WEAK" ||
+                      indicators.relativeStrength?.grade === "VERY_WEAK"
+                    ? "text-negative"
+                    : "text-muted"
+              }
+            />
+            <StateTile
               icon="CH"
               label="차트 건전도"
               value={opinion.chartHealth ? `${opinion.chartHealth.score}점` : "데이터 없음"}
@@ -182,7 +201,89 @@ export default function AiOpinionCard({
               sub={opinion.resistanceDistance !== null ? `(${formatPercent(opinion.resistanceDistance)})` : "52주 신고가 구간 가능"}
               tone="text-orange-300"
             />
+            <StateTile
+              icon="EP"
+              label="진입 매력도"
+              value={`${opinion.entryAttractivenessScore}점`}
+              sub={
+                opinion.entryAttractivenessScore >= 75
+                  ? "부담 낮음"
+                  : opinion.entryAttractivenessScore >= 55
+                    ? "보통"
+                    : "진입 부담"
+              }
+              tone={
+                opinion.entryAttractivenessScore >= 75
+                  ? "text-positive"
+                  : opinion.entryAttractivenessScore >= 55
+                    ? "text-yellow-300"
+                    : "text-orange-300"
+              }
+            />
           </div>
+
+          {indicators.relativeStrength && (
+            <div className="rounded-2xl border border-line/70 bg-panel/50 p-4 md:p-5">
+              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-black text-ink">상대강도 비교 기준</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-muted">
+                    시장: {indicators.relativeStrength.benchmarks.marketLabel}
+                    {indicators.relativeStrength.benchmarks.marketSymbol
+                      ? ` (${indicators.relativeStrength.benchmarks.marketSymbol})`
+                      : ""}
+                    <span className="mx-2 text-line">·</span>
+                    섹터:{" "}
+                    {indicators.relativeStrength.benchmarks.sectorLabel
+                      ? `${indicators.relativeStrength.benchmarks.sectorLabel} (${indicators.relativeStrength.benchmarks.sectorSymbol})`
+                      : "비교 가능한 섹터 지수 없음"}
+                  </p>
+                </div>
+                <p className="text-xs font-bold text-muted">
+                  양수는 비교 기준보다 강한 흐름을 의미합니다.
+                </p>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-2 md:gap-3">
+                {([
+                  {
+                    label: "5일",
+                    market: indicators.relativeStrength.metrics.relativeToMarket5d,
+                    sector: indicators.relativeStrength.metrics.relativeToSector5d,
+                  },
+                  {
+                    label: "20일",
+                    market: indicators.relativeStrength.metrics.relativeToMarket20d,
+                    sector: indicators.relativeStrength.metrics.relativeToSector20d,
+                  },
+                  {
+                    label: "60일",
+                    market: indicators.relativeStrength.metrics.relativeToMarket60d,
+                    sector: indicators.relativeStrength.metrics.relativeToSector60d,
+                  },
+                ] as const).map((period) => (
+                  <div
+                    key={period.label}
+                    className="min-w-0 rounded-xl border border-line/60 bg-surface px-2.5 py-3 md:px-4"
+                  >
+                    <p className="text-xs font-black text-muted">{period.label}</p>
+                    <p className={`mt-2 break-words text-xs font-black md:text-sm ${getPercentColorClass(period.market)}`}>
+                      시장 {formatPercent(period.market)}
+                    </p>
+                    <p className={`mt-1 break-words text-xs font-black md:text-sm ${getPercentColorClass(period.sector)}`}>
+                      섹터 {formatPercent(period.sector)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {indicators.relativeStrength.warnings.length > 0 && (
+                <p className="mt-3 text-xs font-bold leading-5 text-yellow-300">
+                  {indicators.relativeStrength.warnings[0]}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="rounded-2xl border border-line/70 bg-panel/70 p-4 md:p-5">
             <p className="text-sm font-black text-muted">💬 AI 한줄 의견</p>
